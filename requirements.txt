@@ -1,0 +1,13 @@
+# python 3.9
+tqdm
+matplotlib
+
+numpy
+pandas
+
+# pytorch related
+torch
+torchmetrics
+lightning
+tensorboard
+libauc
