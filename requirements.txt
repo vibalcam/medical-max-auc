@@ -4,6 +4,7 @@ matplotlib
 
 numpy
 pandas
+medmnist
 
 # pytorch related
 torch
@@ -11,3 +12,4 @@ torchmetrics
 lightning
 tensorboard
 libauc
+acsconv
