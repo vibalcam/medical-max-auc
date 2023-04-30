@@ -4,6 +4,7 @@ data/
 .vscode/
 events.out.tfevents*
 /saved_models
+/logs*
 scripts/sync.sh
 
 # Byte-compiled / optimized / DLL files
