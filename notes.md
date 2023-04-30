@@ -6,7 +6,6 @@
 - [ ] dict with best values
 
 
-- [ ] define dropout
 - [ ] auc loss
 - [ ] pretraining
 - [ ] contrastive pretraining

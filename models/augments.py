@@ -43,31 +43,37 @@ def convirt(ndim, args):
     else:
         raise NotImplementedError()
     
-    # output should be: N, C, H, W
     train_transform = T.Compose([
-        T.RandomHorizontalFlip(0.5),
+        # T.Grayscale(3),
+        # T.RandomHorizontalFlip(0.5),
         T.RandomApply([
             T.RandomAffine(
-                degrees=(-15,15),
-                translate=(0.1,0.1),
-                scale=(0.95,1.05),
+                degrees=(-5,5),
+                # translate=(0.1,0.1),
+                # scale=(0.97,1.02),
                 fill=128,
             ),
         ], p=0.5),
+        # T.RandomApply([
+        #     T.ColorJitter(brightness=(0.01, 0.05), contrast=(0.01, 0.05)),
+        # ], p=0.5),
         T.RandomApply([
-            T.ColorJitter(brightness=(0.6, 1.4), contrast=(0.6, 1.4)),
-        ], p=0.8),
-        T.RandomApply([
-            loader.GaussianBlur((0.1,3.0)),
-        ], p=0.5),
-        T.RandomApply([
-            T.ElasticTransform(alpha=40, sigma=10)
-        ], p=0.5),
+            loader.GaussianBlur((0.1,0.3)),
+            # T.GaussianBlur(kernel_size=3, sigma=(0.1, 0.6))
+        ], p=0.2),
+        # T.RandomApply([
+        #     T.ElasticTransform(
+        #         alpha=0.5, 
+        #         sigma=0.5,
+        #         fill=128,
+        #     )
+        # ], p=0.2),
         to_tensor,
         T.Normalize(mean=0.5, std=0.5),
     ])
 
     eval_transform = T.Compose([
+        # T.Grayscale(3),
         to_tensor,
         T.Normalize(0.5, 0.5),
     ])

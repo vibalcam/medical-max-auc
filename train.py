@@ -2,6 +2,7 @@ import argparse
 import gc
 import math
 import os
+from typing import Any, Optional
 import warnings
 from matplotlib import pyplot as plt
 from models.schedulers import StepSchedulerWithWarmup, adjust_learning_rate
@@ -42,7 +43,7 @@ parser.add_argument('--debug', action='store_true', help='To debug code')
 
 # optimizer options
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
-parser.add_argument('-wd', '--weight-decay', default=1e-4, type=float, metavar='W', help='weight decay (default: 1e-6)', dest='weight_decay')
+parser.add_argument('-wd', '--weight-decay', default=1e-2, type=float, metavar='W', help='weight decay (default: 1e-6)', dest='weight_decay')
 parser.add_argument('--loss_type', default='bce', type=str, help='loss type of pretrained (default: bce)')
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, metavar='LR', help='initial (base) learning rate')
 parser.add_argument('--optimizer', default='adamw', type=str, choices=['sgd', 'adamw'], help='optimizer used (default: sgd)')
@@ -57,8 +58,13 @@ parser.add_argument('--augmentations', type=str, default="basic")
 
 # saving
 parser.add_argument('--save_every_epochs', default=5, type=int, help='number of epochs to save checkpoint')
-parser.add_argument('-e', '--evaluate_every', default=10, type=float, help='evaluate model on validation set every # epochs')
+parser.add_argument('-e', '--evaluate_every', default=5, type=float, help='evaluate model on validation set every # epochs')
 parser.add_argument('--early_stopping_patience', default=None, type=int, help='patience for early stopping')
+
+# other model
+parser.add_argument('--dropout', type=float, default=None, help='dropout rate')
+parser.add_argument("--pretrain_epochs", type=int, default=0)
+parser.add_argument("--pretrain_type", type=str, default='bce')
 
 
 class Module(pl.LightningModule):
@@ -122,14 +128,15 @@ class Module(pl.LightningModule):
             # from acsconv.converters import Conv3dConverter
             # self.model = Conv3dConverter(self.model, i3d_repeat_axis=None)
         
-        # def append_dropout(model, rate=0.2):
-        #     for name, module in model.named_children():
-        #         if len(list(module.children())) > 0:
-        #             append_dropout(module)
-        #         if isinstance(module, nn.ReLU):
-        #             new = nn.Sequential(module, nn.Dropout2d(p=rate, inplace=True))
-        #             setattr(model, name, new)
-        # append_dropout(net)
+        if self.args.dropout is not None:
+            def append_dropout(model, rate):
+                for name, module in model.named_children():
+                    if len(list(module.children())) > 0:
+                        append_dropout(module, rate)
+                    if isinstance(module, nn.ReLU):
+                        new = nn.Sequential(module, nn.Dropout2d(p=rate))
+                        setattr(model, name, new)
+            append_dropout(self.model, self.args.dropout)
 
     def configure_optimizers(self):
         ## optimizer
@@ -168,7 +175,26 @@ class Module(pl.LightningModule):
 
     def on_train_epoch_start(self):
         # adjust_learning_rate(self.optimizers(), self.lr, self.current_epoch, self.args)
-        self.lr_scheduler.step(self.current_epoch)
+        if self.current_epoch < self.args.pretrain_epochs:
+            self.lr_scheduler.step(self.current_epoch)
+        else:
+            self.lr_scheduler.step(self.current_epoch - self.args.pretrain_epochs)
+
+    # # todo! finish
+    # def compute_loss(self, output, target):
+    #     if self.current_epoch < self.args.pretrain_epochs:
+    #         output, hidden = self(x, get_hidden=True)
+    #         loss = self.pretrain_loss(hidden, target)
+    #         self.log('loss_pretrain', loss, on_step=True, on_epoch=True)
+    #     else:
+    #         output = self(x)
+    #         loss = self.training_loss(output, target, index)
+    #         self.log('loss_train', loss, on_step=True, on_epoch=True)
+
+    # def on_train_batch_start(self, batch: Any, batch_idx: int):
+    #     if self.current_epoch < self.args.pretrain_epochs:
+    #         self.loss_f = 
+    #     return super().on_train_batch_start(batch, batch_idx)
 
     def training_step(self, batch, batch_idx):
         # run through model
@@ -292,8 +318,10 @@ def main():
     print('==> Preparing data...')
 
     ndim = DataClass('test').imgs.ndim
-    # train_transform, eval_transform = augments.basic(ndim, args)
-    train_transform, eval_transform = getattr(augments, args.augmentations)(ndim, args)
+    if hasattr(augments, args.dataset):
+        train_transform, eval_transform = getattr(augments, args.dataset)(ndim, args)    
+    else:
+        train_transform, eval_transform = getattr(augments, args.augmentations)(ndim, args)
     
     train_dataset = DataClass(split='train', transform=train_transform, download=True, as_rgb=True)
     val_dataset = DataClass(split='val', transform=eval_transform, download=True, as_rgb=True)
@@ -458,10 +486,12 @@ def main():
     results = trainer.test(
         model=model_task,
         dataloaders=test_dataloader, 
+        # ckpt_path='last',
         ckpt_path=checkpoint_cb_bestk.best_model_path,
         verbose=True,
     )
 
+    results = results[0]
     results['args'] = args
     results['dataset'] = args.dataset
     results['name'] = logger.name
