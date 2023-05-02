@@ -84,6 +84,7 @@ class Module(pl.LightningModule):
 
         from libauc.models import resnet18 as ResNet18
         model = ResNet18(pretrained=False, num_classes=n_outputs)
+        dropout = nn.Dropout2d
         
         if len(self.hparams.img_shape) == 4:
             if self.args.type_3d == '3d':
@@ -91,6 +92,7 @@ class Module(pl.LightningModule):
                 ## https://paperswithcode.com/lib/torchvision/resnet-3d#:~:text=ResNet%203D%20is%20a%20type,convolutions%20in%20the%20top%20layers
                 import torchvision.models as tm
                 model = tm.video.r3d_18(pretrained=False, num_classes=n_outputs)
+                dropout = nn.Dropout3d
             elif self.args.type_3d == 'channels':
                 ## consider 3rd dimension as channel
                 model.conv1 = torch.nn.Conv2d(self.hparams.img_shape[-1], 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -102,14 +104,13 @@ class Module(pl.LightningModule):
             # model = model_to_syncbn(Conv3dConverter(model, i3d_repeat_axis=-3))
             # model.cuda()
         
-        # todo! add dropout for 3d
         if self.args.dropout is not None:
             def append_dropout(m, rate):
                 for name, module in m.named_children():
                     if len(list(module.children())) > 0:
                         append_dropout(module, rate)
                     if isinstance(module, nn.ReLU):
-                        new = nn.Sequential(module, nn.Dropout2d(p=rate))
+                        new = nn.Sequential(module, dropout(p=rate))
                         setattr(m, name, new)
             append_dropout(model, self.args.dropout)
 
@@ -135,10 +136,10 @@ class Module(pl.LightningModule):
             optimizer = optimizers.PDSCA(
                 self.model, 
                 loss_fn=self.criterion, 
-                lr=0.01, 
-                lr0=0.02,
-                beta1=0.9,
-                beta2=0.9,
+                lr=self.args.lr, 
+                lr0=self.args.lr0,
+                beta1=self.args.betas[0],
+                beta2=self.args.betas[1],
                 # momentum=self.args.momentum,
                 margin=self.args.margin,
                 weight_decay=self.args.weight_decay,
@@ -368,7 +369,7 @@ def main(args):
     if args.resume is None:
         logger = pl.loggers.TensorBoardLogger(
             save_dir=logger_base,
-            name=f"{args.augmentations}_{args.loss_type}_{args.lr}_{args.weight_decay}_{args.epochs}_{args.batch_size}", 
+            name=f"{args.augmentations}_{args.loss_type}_{args.batch_size}", 
             # log_graph=True,
         )
     else:
@@ -460,7 +461,7 @@ def main(args):
     # torch.set_float32_matmul_precision("high")
     trainer = pl.Trainer(
         accelerator='gpu' if not args.debug else 'cpu',
-        deterministic="warn" if args.seed is not None else False,
+        deterministic=True if args.seed is not None else False,
         # precision="16-mixed",   # reduce memory, can improve performance but might lead to unstable training
         
         max_epochs=args.epochs,
@@ -508,34 +509,39 @@ def main(args):
     if args.loss_type == 'pre':
         return
 
-    cp = checkpoint_cb_bestk if args.use_best_model else checkpoint_cb_every
+    for name, cp in [('last', checkpoint_cb_every), ('best', checkpoint_cb_bestk)]:
+        # cp = checkpoint_cb_bestk if args.use_best_model else checkpoint_cb_every
 
-    ## validate model
-    results_val = trainer.validate(
-        model=model_task,
-        dataloaders=val_dataloader, 
-        ckpt_path=cp.best_model_path,
-        verbose=True,
-    )
+        ## validate model
+        results_val = trainer.validate(
+            model=model_task,
+            dataloaders=val_dataloader, 
+            ckpt_path=cp.best_model_path,
+            verbose=True,
+        )
 
-    ## test model
-    results_test = trainer.test(
-        model=model_task,
-        dataloaders=test_dataloader, 
-        ckpt_path=cp.best_model_path,
-        # ckpt_path=checkpoint_cb_every.best_model_path,
-        # ckpt_path=checkpoint_cb_bestk.best_model_path,
-        verbose=True,
-    )
+        ## test model
+        results_test = trainer.test(
+            model=model_task,
+            dataloaders=test_dataloader, 
+            ckpt_path=cp.best_model_path,
+            # ckpt_path=checkpoint_cb_every.best_model_path,
+            # ckpt_path=checkpoint_cb_bestk.best_model_path,
+            verbose=True,
+        )
 
-    results = {}
-    results['val'] = results_val[0]
-    results['test'] = results_test[0]
-    results['args'] = args
-    results['dataset'] = args.dataset
-    results['name'] = logger.name
-    save_pickle(results, os.path.join(save_path, 'results.pkl'))
-    save_dict(results, os.path.join(save_path, 'results.pkl'), as_str=True)
+        logger.experiment.add_scalar(f"final_val_auc_{name}", results_val[0]['val_auc'], global_step=trainer.global_step+100)
+        logger.experiment.add_scalar(f"final_test_auc_{name}", results_test[0]['test_auc'], global_step=trainer.global_step+100)
+
+        results = {}
+        results['val'] = results_val[0]
+        results['test'] = results_test[0]
+        results['args'] = args
+        results['dataset'] = args.dataset
+        results['name'] = logger.name
+
+        save_pickle(results, os.path.join(save_path, f"results_{logger.version}_{name}.pkl"))
+        save_dict(results, os.path.join(save_path, f"results_{logger.version}_{name}.pkl"), as_str=True)
 
 
 if __name__ == '__main__':
