@@ -5,7 +5,8 @@ workers=14
 saved_folder='./logs'
 log_folder='./logs_txt'
 
-datasets=("nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
+datasets=("breastmnist" "pneumoniamnist" "chestmnist")
+#  "nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
 
 # loop through indices of datasets
 for (( i=0; i<${#datasets[@]}; i++ ))
@@ -16,7 +17,7 @@ do
     # basic training
     echo "Starting basic training for dataset $d"
     python train.py \
-        --name basic \
+        --name default \
         --dataset $d \
         --save_dir $saved_folder \
         --workers $workers \
@@ -27,12 +28,5 @@ do
         --lr 1e-3 \
         --loss bce \
         --augmentations basic \
-        > "${log_folder}/${name}_${d}.log" &
-
-    sleep 5
-
-    # release the lock on the train file
-    if (( (i + 1) % 3 == 0 )); then
-        wait
-    fi
+        --use_best_model
 done

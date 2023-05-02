@@ -2,40 +2,32 @@ import torch
 import torch.nn.functional as F
 
 
-def contrastive_loss(hidden1, target, T=0.1, device=None, LARGE_NUM=1e9):
+def similarity_loss(hidden1, target, T=0.1, device=None, LARGE_NUM=1e9):
         # Get (normalized) hidden1 and hidden2.
+        # target = target.squeeze()
         hidden1 = F.normalize(hidden1, p=2, dim=1)
         batch_size = hidden1.shape[0]
-
-        ''' Note: **
-        Cosine similarity matrix of all samples in batch:
-        a = z_i
-        b = z_j
-         ____ ____
-        | aa | ab |
-        |____|____|
-        | ba | bb |
-        |____|____|
-        Postives:
-        Diagonals of ab and ba '\'
-        Negatives:
-        All values that do not lie on leading diagonals of aa, bb, ab, ba.
-        '''
 
         # mask similarities
         masks  = F.one_hot(torch.arange(batch_size, dtype=torch.long, device=device), batch_size)
         # labels are probabilities of being similar
-        labels = (target[:,None] == target[None,:]).int() * (1-masks)
-        labels = labels / labels.sum(1)
+        target = target.T
+        labels = (target[:,:,None] == target[:,None,:]).int() * (1-masks[None])
 
         # similarity between all views (cosine since previously normalized)
-        logits_aa = torch.matmul(hidden1, hidden1.T)/ T
+        logits_aa = torch.matmul(hidden1, hidden1.T) #/ T
 
         # mask similarities to exclude them
-        logits_aa = logits_aa - masks * LARGE_NUM
+        # logits_aa = logits_aa - masks * LARGE_NUM
 
         # compute cross entropy
-        loss = F.cross_entropy(F.softmax(logits_aa, 1), labels)
+        # labels = labels / labels.sum(1)
+        # loss = F.cross_entropy(F.softmax(logits_aa, 1), labels)
+        
+        # loss = -(((2*labels - 1) * (1-masks) * logits_aa)).mean()
+        
+        labels = labels.float().mean(0)
+        loss = F.mse_loss(logits_aa*(1-masks), labels)
         return loss
 
 

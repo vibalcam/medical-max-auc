@@ -15,6 +15,66 @@ from scipy.sparse import csr_matrix
 import torch.nn as nn
 import numpy as np
 from .batchnorm import SynchronizedBatchNorm3d, SynchronizedBatchNorm2d
+from sklearn import metrics
+import argparse
+
+
+def get_logger_name(args: argparse.Namespace) -> str:
+    """
+    Generates a logger name based on the first two letters of each parameter name in the argparse object.
+    
+    Args:
+        args: An argparse.Namespace object containing the parsed command-line arguments.
+        
+    Returns:
+        A string representing the logger name.
+    """
+    # Construct the logger name from the parsed arguments
+    logger_name = ""
+    for arg in vars(args):
+        value = getattr(args, arg)
+        if isinstance(value, list):
+            value = "_".join([str(k) for k in value])
+        logger_name += f"{arg[:2]}={value}_"
+    logger_name = logger_name[:-1]  # Remove the trailing underscore
+    
+    return logger_name
+
+
+class ClassificationMetrics:
+    def __init__(self, prefix='') -> None:
+        self.target = []
+        self.preds = []
+        self.prefix = prefix
+
+    def update(self, target: torch.Tensor, preds: torch.Tensor) -> Dict[str, float]:
+        target = target.detach().clone().cpu()
+        preds = preds.detach().clone().cpu()
+        self.target.append(target)
+        self.preds.append(preds)
+
+        return self._get_results(target, preds)
+
+    def compute(self) -> Dict[str, float]:
+        target = torch.cat(self.target, dim=0)
+        preds = torch.cat(self.preds, dim=0)
+        
+        return self._get_results(target, preds)
+    
+    def _get_results(self, target, preds):
+        y_pred = (preds >= 0.5).int()
+
+        acc = metrics.accuracy_score(target, y_pred)
+        auc = metrics.roc_auc_score(target, preds)
+
+        return {
+            self.prefix + 'acc': acc,
+            self.prefix + 'auc': auc,
+        }
+    
+    def reset(self) -> None:
+        self.target = []
+        self.preds = []
 
 
 def model_to_syncbn(model):

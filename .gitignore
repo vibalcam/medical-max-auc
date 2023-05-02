@@ -1,5 +1,5 @@
 # custom
-tmp/
+tmp*/
 data/
 .vscode/
 events.out.tfevents*

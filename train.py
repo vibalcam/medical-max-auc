@@ -1,12 +1,14 @@
 import argparse
+from functools import partial
 import gc
 import math
 import os
 from typing import Any, Optional
 import warnings
 from matplotlib import pyplot as plt
-from models.schedulers import CosineSchedulerWithWarmup, StepSchedulerWithWarmup
-from models.utils import model_to_syncbn, save_pickle, set_seed
+from models.pretraining import similarity_loss
+from models.schedulers import CosineSchedulerWithWarmup, SchedulerCollection, StepSchedulerWithWarmup
+from models.utils import ClassificationMetrics, get_logger_name, model_to_syncbn, save_dict, save_pickle, set_seed
 
 import numpy as np
 import lightning.pytorch as pl
@@ -16,60 +18,14 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-from libauc.losses.auc import tpAUC_KL_Loss
-from libauc.optimizers import SOTAs
-import torchmetrics
 from torch.utils.data import DataLoader
-from torchvision import transforms
 
-from libauc.losses import AUCMLoss
-from libauc.optimizers import PESG
+from libauc.losses import AUCMLoss, CompositionalAUCLoss
+from libauc import optimizers
 import medmnist 
 from models import augments
-from medmnist import INFO, Evaluator
-
-
-parser = argparse.ArgumentParser(description='')
-
-# general options
-parser.add_argument('--name', default='default', type=str, help='name of experiment')
-parser.add_argument('-j', '--workers', default=12, type=int, metavar='N', help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=100, type=int)
-parser.add_argument('-b', '--batch_size', default=128, type=int)
-
-parser.add_argument('--resume', default=None, type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
-parser.add_argument('--seed', default=44444, type=int, help='seed for initializing training. ')
-parser.add_argument('--debug', action='store_true', help='To debug code')
-
-# optimizer options
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
-parser.add_argument('-wd', '--weight_decay', default=1e-2, type=float, metavar='W', help='weight decay (default: 1e-6)', dest='weight_decay')
-parser.add_argument('--loss_type', default='bce', type=str, help='loss type of pretrained (default: bce)')
-parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, metavar='LR', help='initial (base) learning rate')
-parser.add_argument('--optimizer', default='adamw', type=str, choices=['sgd', 'adamw'], help='optimizer used (default: sgd)')
-parser.add_argument('--warmup_epochs', default=0, type=float, help='number of warmup epochs')
-parser.add_argument('--lr_steps', default=[50, 75], type=int, nargs="+", help='epochs to decay learning rate by 10')
-
-# dataset 
-parser.add_argument('--save_dir', default='./saved_models/', type=str)
-parser.add_argument('--results_file', default='results', type=str)
-parser.add_argument('--dataset', type=str, default="breastmnist", choices=["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",])
-parser.add_argument('--augmentations', type=str, default="basic")
-parser.add_argument('--aug_args', type=str, default='gn.ra')
-
-# saving
-parser.add_argument('--save_every_epochs', default=5, type=int, help='number of epochs to save checkpoint')
-parser.add_argument('-e', '--evaluate_every', default=5, type=float, help='evaluate model on validation set every # epochs')
-parser.add_argument('--early_stopping_patience', default=None, type=int, help='patience for early stopping')
-parser.add_argument('--use_best_model', action='store_true', help='use best model for evaluation')
-
-# other model
-parser.add_argument('--dropout', type=float, default=None, help='dropout rate')
-parser.add_argument("--pretrained", type=str, default=None)
-parser.add_argument("--pretrain_type", type=str, default='bce')
-parser.add_argument("--type_3d", type=str, default='3d')
-
-args = parser.parse_args()
+from medmnist import INFO
+from models.sampler import DualSampler
 
 
 class Module(pl.LightningModule):
@@ -100,22 +56,32 @@ class Module(pl.LightningModule):
         # define loss function
         if self.args.loss_type == 'bce':
             self.criterion = nn.BCEWithLogitsLoss()
-        # elif args.loss_type == 'auc':
-        #     self.criterion = AUCMLoss()
+        elif args.loss_type == 'auc':
+            self.criterion = AUCMLoss()
+        elif args.loss_type == 'comp':
+            self.criterion = CompositionalAUCLoss(last_activation=None)
+        elif args.loss_type == 'pre':
+            self.criterion = similarity_loss
         else:
             raise NotImplementedError()
     
     def define_metrics(self):
-        params = dict(task='binary' if self.hparams.num_outputs==1 else 'multilabel', num_labels=self.hparams.num_outputs, average='macro')
-        self.train_metrics = torchmetrics.MetricCollection({
-            'aucroc': torchmetrics.AUROC(**params),
-            'acc': torchmetrics.Accuracy(**params),
-        }, prefix='train_')
-        self.val_metrics = self.train_metrics.clone(prefix='val_')
-        self.test_metrics = self.train_metrics.clone(prefix='test_')
+        self.train_metrics = ClassificationMetrics('train_')
+        self.val_metrics = ClassificationMetrics('val_')
+        self.test_metrics = ClassificationMetrics('test_')
+
+        # params = dict(task='binary' if self.hparams.num_outputs==1 else 'multilabel', num_labels=self.hparams.num_outputs, average='macro')
+        # self.train_metrics = torchmetrics.MetricCollection({
+        #     'aucroc': torchmetrics.AUROC(**params),
+        #     'acc': torchmetrics.Accuracy(**params),
+        # }, prefix='train_')
+        # self.val_metrics = self.train_metrics.clone(prefix='val_')
+        # self.test_metrics = self.train_metrics.clone(prefix='test_')
 
     def create_model(self, n_outputs):
-        # from models.resnet import resnet18 as ResNet18
+        # if self.args.loss_type=='pre':
+        #     n_outputs = 256
+
         from libauc.models import resnet18 as ResNet18
         model = ResNet18(pretrained=False, num_classes=n_outputs)
         
@@ -147,18 +113,39 @@ class Module(pl.LightningModule):
                         setattr(m, name, new)
             append_dropout(model, self.args.dropout)
 
+        if self.args.loss_type=='pre':
+            model.fc = torch.nn.Identity()
+
         return model
 
     def configure_optimizers(self):
+        self.lr_scheduler = SchedulerCollection()
         ## optimizer
         if self.args.loss_type == 'auc':
-            raise NotImplementedError()
-            # optimizer = PESG(
-            #     self.model, 
-            #     loss_fn=self.criterion, 
-            #     lr=self.lr, 
-            #     momentum=self.args.momentum,
-            #     weight_decay=self.args.weight_decay,
+            optimizer = optimizers.PESG(
+                self.model, 
+                loss_fn=self.criterion, 
+                lr=self.lr, 
+                momentum=self.args.momentum,
+                weight_decay=self.args.weight_decay,
+                epoch_decay=self.args.epoch_decay,
+                margin=self.args.margin,
+            )
+        elif self.args.loss_type == 'comp':
+            optimizer = optimizers.PDSCA(
+                self.model, 
+                loss_fn=self.criterion, 
+                lr=0.01, 
+                lr0=0.02,
+                beta1=0.9,
+                beta2=0.9,
+                # momentum=self.args.momentum,
+                margin=self.args.margin,
+                weight_decay=self.args.weight_decay,
+                epoch_decay=self.args.epoch_decay,
+            )
+            # self.lr_scheduler.add(
+            #     StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs, key='lr0')
             # )
         else:
             if self.args.optimizer == 'sgd':
@@ -178,7 +165,10 @@ class Module(pl.LightningModule):
                 raise NotImplementedError("Optimizer not implemented")
 
         ## for lr scheduler
-        self.lr_scheduler = StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs)
+        self.lr_scheduler.add(
+            StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs)
+        )
+
         # self.lr_scheduler = CosineSchedulerWithWarmup(optimizer, self.lr, self.args.warmup_epochs, self.args.epochs, self.lr / 1e2)
 
         return optimizer
@@ -194,13 +184,18 @@ class Module(pl.LightningModule):
         self.model.train()
 
     def training_step(self, batch, batch_idx):
+        x, target = batch
+        output = self(x)
         if self.args.loss_type=='auc':
-            # loss = self.criterion(torch.sigmoid(output).float(), target, index.long())
-            # loss = self.criterion(torch.sigmoid(output).float(), target, index[:self.pos_samples].long())
-            raise NotImplementedError()
+            loss = self.criterion(torch.sigmoid(output), target.float())
+        elif self.args.loss_type=='pre':
+            loss = self.criterion(
+                output, 
+                target,
+                T=0.1, 
+                device=self.device,
+            )
         else:
-            x, target = batch
-            output = self(x)
             loss = self.criterion(output, target.float())
 
         if output.isnan().any():
@@ -209,14 +204,18 @@ class Module(pl.LightningModule):
             warnings.warn("Getting nan loss")
 
         # calculate metrics
-        y_pred = torch.sigmoid(output).detach().float()
-        self.train_metrics(y_pred, target.int().detach())
+        if self.args.loss_type != 'pre':
+            y_pred = torch.sigmoid(output)
+            r = self.train_metrics.update(target.int(), y_pred)
+            self.log_dict(r)
+
+            # self.train_metrics(y_pred, target.int().detach())
+            # self.log_dict(self.train_metrics, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         # log loss for training step and average loss for epoch
         self.log_dict({
             "train_loss": loss,
         }, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log_dict(self.train_metrics, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         ## compute gradient and do SGD step
         ## automatically done by lightning
@@ -231,23 +230,36 @@ class Module(pl.LightningModule):
         # gc.collect()
         
         return loss
+    
+    def on_train_epoch_end(self) -> None:
+        self.log_dict(self.train_metrics.compute())
+        self.train_metrics.reset()
+        return super().on_train_epoch_end()
 
     def on_validation_epoch_start(self) -> None:
         self.model.eval()
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):   
+        if self.args.loss_type == 'pre':
+            return
+
         # run through model
         x, target = batch[:2]
         output = self(x)
 
         # calculate metrics
-        y_pred = torch.sigmoid(output).float().detach()
-        target = target.int().detach()
-        self.val_metrics.update(y_pred, target)
+        self.val_metrics.update(target.int(), torch.sigmoid(output))
+        # y_pred = torch.sigmoid(output).float().detach()
+        # target = target.int().detach()
+        # self.val_metrics.update(y_pred, target)
+        # self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         self.lr_scheduler.update(None)
 
-        self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+    def on_validation_epoch_end(self) -> None:
+        self.log_dict(self.val_metrics.compute())
+        self.val_metrics.reset()
+        return super().on_validation_epoch_end()
 
     def on_test_epoch_start(self) -> None:
         self.model.eval()
@@ -257,28 +269,16 @@ class Module(pl.LightningModule):
         images, target = batch
         output = self(images)
 
-        y_pred = torch.sigmoid(output).float().detach()
-        target = target.int().detach()
-        self.test_metrics.update(y_pred, target)
+        self.test_metrics.update(target.int(), torch.sigmoid(output))
+
+        # y_pred = torch.sigmoid(output).float().detach()
+        # target = target.int().detach()
+        # self.test_metrics.update(y_pred, target)
 
     def on_test_epoch_end(self) -> None:
-        self.log_dict(self.test_metrics.compute(), on_step=False, on_epoch=True)
-
-
-# class dataset(torch.utils.data.Dataset):
-#     def __init__(self, inputs, targets, trans=None):
-#         self.x = inputs
-#         self.y = targets
-#         self.trans=trans
-
-#     def __len__(self):
-#         return self.x.size()[0]
-
-#     def __getitem__(self, idx):
-#         if self.trans == None:
-#             return (self.x[idx], self.y[idx], idx)
-#         else:
-#             return (self.trans(self.x[idx]), self.y[idx], idx) 
+        self.log_dict(self.test_metrics.compute())
+        self.test_metrics.reset()
+        # self.log_dict(self.test_metrics.compute(), on_step=False, on_epoch=True)
 
 
 def main(args):
@@ -328,13 +328,23 @@ def main(args):
     # test_labels[test_labels == args.pos_class] = 1
     # test_labels[test_labels == 999] = 0
 
-    print(f"==> Positive/negative samples: {(train_dataset.labels == 1).sum()}/{(train_dataset.labels == 0).sum()}")
+    print(f"==> Positive/negative samples: {(train_dataset.labels == 1).sum()}/{(train_dataset.labels == 0).sum()}=>{(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]}")
 
-    # sampler = DualSampler(train_dataset, args.batch_size, sampling_rate=0)
+    if args.sampler is not None:
+        sampler = DualSampler(
+            dataset=train_dataset, 
+            batch_size=args.batch_size, 
+            shuffle=True, 
+            sampling_rate=args.sampler,
+            #sampling_rate=(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]
+        )
+    else:
+        sampler = None
     train_dataloader = DataLoader(
         dataset=train_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        sampler=sampler,
+        shuffle=sampler is None,
         num_workers=args.workers, 
     )
     val_dataloader = DataLoader(
@@ -358,7 +368,7 @@ def main(args):
     if args.resume is None:
         logger = pl.loggers.TensorBoardLogger(
             save_dir=logger_base,
-            name=os.path.join(args.augmentations, args.loss_type), 
+            name=f"{args.augmentations}_{args.loss_type}_{args.lr}_{args.weight_decay}_{args.epochs}_{args.batch_size}", 
             # log_graph=True,
         )
     else:
@@ -374,21 +384,24 @@ def main(args):
     # Model
     ###########################
 
+    n_outputs = train_dataset.labels.shape[1]
+    model_task = Module(
+        args=args,
+        img_shape=train_dataset[0][0].shape,
+        num_outputs=n_outputs,
+    )
     if args.pretrained is not None:
-        args.pretrained = os.path.join(logger_base, args.pretrained)
+        # args.pretrained = os.path.join(logger_base, args.pretrained)
         print(f"==>Loading pretrained model from {args.pretrained}")
-        model_task = Module.load_from_checkpoint(
-            args.pretrained,
-            args=args,
-            img_shape=train_dataset[0][0].shape,
-            num_outputs=train_dataset.labels.shape[1],
-        )
-    else:
-        model_task = Module(
-            args=args,
-            img_shape=train_dataset[0][0].shape,
-            num_outputs=train_dataset.labels.shape[1],
-        )
+        model = Module.load_from_checkpoint(args.pretrained).model
+        
+        if args.freeze:
+            for i, param in enumerate(model.parameters()):
+                param.requires_grad = False
+
+        if 512 != n_outputs:
+            model.fc = nn.Linear(512, n_outputs, bias=True)
+        model_task.model = model
 
     ###########################
     # CALLBACKS
@@ -404,7 +417,7 @@ def main(args):
     ## callback for saving checkpoints
     checkpoint_cb_every = pl.callbacks.ModelCheckpoint(
         dirpath=save_path, 
-        filename="last-{epoch:02d}-{val_aucroc:.4f}",
+        filename="last-{epoch:02d}-{val_auc:.4f}",
         monitor="step",
         mode="max",
         save_top_k=1,
@@ -412,31 +425,32 @@ def main(args):
         save_on_train_epoch_end=True,
         # train_time_interval=,
         # every_n_train_steps=,
-        # save_last=False,
+        save_last=not args.use_best_model,
     )
     callbacks.append(checkpoint_cb_every)
 
-    checkpoint_cb_bestk = pl.callbacks.ModelCheckpoint(
-        dirpath=save_path, 
-        filename="best_auc-{epoch:02d}-{val_aucroc:.4f}",
-        save_top_k=1, 
-        monitor='val_aucroc',
-        mode='max',
-        verbose=True,
-        # save_on_train_epoch_end=False,
-        # save_last=False,
-    )
-    callbacks.append(checkpoint_cb_bestk)
-
-    # early stopping
-    if args.early_stopping_patience is not None:
-        early_stopping = pl.callbacks.EarlyStopping(
-            monitor='val_aucroc',
+    if args.loss_type != 'pre':
+        checkpoint_cb_bestk = pl.callbacks.ModelCheckpoint(
+            dirpath=save_path, 
+            filename="best_auc-{epoch:02d}-{val_auc:.4f}",
+            save_top_k=1, 
+            monitor='val_auc',
             mode='max',
-            patience=args.early_stopping_patience,
             verbose=True,
+            # save_on_train_epoch_end=False,
+            save_last=args.use_best_model,
         )
-        callbacks.append(early_stopping)
+        callbacks.append(checkpoint_cb_bestk)
+
+        # early stopping
+        if args.early_stopping_patience is not None:
+            early_stopping = pl.callbacks.EarlyStopping(
+                monitor='val_auc',
+                mode='max',
+                patience=args.early_stopping_patience,
+                verbose=True,
+            )
+            callbacks.append(early_stopping)
 
     ###########################
     # TRAINER
@@ -453,7 +467,7 @@ def main(args):
         # max_time="00:1:00:00",
         # max_steps=,
 
-        check_val_every_n_epoch=args.evaluate_every,
+        check_val_every_n_epoch=int(args.evaluate_every),
         # val_check_interval=args.evaluate_every,
         logger=logger,
         log_every_n_steps=1,
@@ -491,17 +505,20 @@ def main(args):
         ckpt_path=args.resume,
     )
 
+    if args.loss_type == 'pre':
+        return
+
+    cp = checkpoint_cb_bestk if args.use_best_model else checkpoint_cb_every
+
     ## validate model
     results_val = trainer.validate(
         model=model_task,
         dataloaders=val_dataloader, 
-        ckpt_path=checkpoint_cb_every.best_model_path,
-        # ckpt_path=checkpoint_cb_bestk.best_model_path,
+        ckpt_path=cp.best_model_path,
         verbose=True,
     )
 
     ## test model
-    cp = checkpoint_cb_bestk if args.use_best_model else checkpoint_cb_every
     results_test = trainer.test(
         model=model_task,
         dataloaders=test_dataloader, 
@@ -518,7 +535,9 @@ def main(args):
     results['dataset'] = args.dataset
     results['name'] = logger.name
     save_pickle(results, os.path.join(save_path, 'results.pkl'))
+    save_dict(results, os.path.join(save_path, 'results.pkl'), as_str=True)
 
 
 if __name__ == '__main__':
-    main(args)
+    from arguments import args as a
+    main(a)
