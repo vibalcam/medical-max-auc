@@ -43,6 +43,7 @@ parser.add_argument('--save_every_epochs', default=5, type=int, help='number of 
 parser.add_argument('-e', '--evaluate_every', default=5, type=float, help='evaluate model on validation set every # epochs')
 parser.add_argument('--early_stopping_patience', default=None, type=int, help='patience for early stopping')
 parser.add_argument('--use_best_model', action='store_true', help='use best model for evaluation')
+parser.add_argument('--test', type=str, default=None, help='path to model to test')
 
 # other model
 parser.add_argument('--dropout', type=float, default=None, help='dropout rate')

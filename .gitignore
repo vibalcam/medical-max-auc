@@ -1,9 +1,12 @@
 # custom
+best_models/
+best_val_models/
+
 tmp*/
 data/
 .vscode/
 events.out.tfevents*
-/saved_models
+saved_models/
 /logs*
 scripts/sync.sh
 

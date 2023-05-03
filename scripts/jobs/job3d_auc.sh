@@ -7,10 +7,10 @@
 ##NECESSARY JOB SPECIFICATIONS
 #SBATCH --job-name=med
 #SBATCH --time=2:00:00 
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=2
 #SBATCH --ntasks=1
 #SBATCH --mem=4GB
-#SBATCH --output=logs/%j.txt  	#Send stdout/err
+#SBATCH --output=../logs/%j.txt  	#Send stdout/err
 #SBATCH --gres=gpu:1             	#Request 1 GPU per node can be 1 or 2 (gpu:a100:1)
 #SBATCH --partition=gpu          	#Request the GPU partition/queue
 
@@ -19,22 +19,26 @@
 # scancel 6565
 # seff 6591423
 
-source prepare.sh || exit 1
 
-workers=$SLURM_CPUS_PER_TASK
-id=$SLURM_JOBID
-saved_folder='./saved_models'
+# source prepare.sh || exit 1
+# workers=$SLURM_CPUS_PER_TASK
+# saved_folder='./saved_models'
 
-name=$1
-d=$2
-b=$3
-lr=$4
-wd=$5
-ep=$6
-m=$7
-dr=$8
+# rm core*
 
-echo "Starting $name $id with $workers workers"
+workers=7
+saved_folder='./other'
+
+name="${1}_${2}"
+d=$3
+b=$4
+lr=$5
+wd=$6
+ep=$7
+m=$8
+dr=$9
+
+echo "Starting $name with $workers workers"
 
 python train.py \
     --name $name \
@@ -53,4 +57,5 @@ python train.py \
     --augmentations basic \
     --aug_args '' \
     --dropout $dr \
-    --type_3d '3d'
+    --type_3d '3d' \
+    --early_stopping_patience 10

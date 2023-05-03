@@ -49,6 +49,7 @@ class Module(pl.LightningModule):
         # self.init_lr = self.args.lr * self.batch_size / 256
         print('initial learning rate:', self.lr)
 
+        self.lr_scheduler = None
         # get metrics and model
         self.define_metrics()
         self.model = self.create_model(self.hparams.num_outputs)
@@ -255,7 +256,8 @@ class Module(pl.LightningModule):
         # self.val_metrics.update(y_pred, target)
         # self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        self.lr_scheduler.update(None)
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.update(None)
 
     def on_validation_epoch_end(self) -> None:
         self.log_dict(self.val_metrics.compute())
@@ -498,25 +500,31 @@ def main(args):
     # return
 
     # fit the model
-    print("Fitting model...")
-    trainer.fit(
-        model=model_task,
-        train_dataloaders=train_dataloader,
-        val_dataloaders=val_dataloader,
-        ckpt_path=args.resume,
-    )
+    if args.test is None:
+        print("Fitting model...")
+        trainer.fit(
+            model=model_task,
+            train_dataloaders=train_dataloader,
+            val_dataloaders=val_dataloader,
+            ckpt_path=args.resume,
+        )
 
     if args.loss_type == 'pre':
         return
 
-    for name, cp in [('last', checkpoint_cb_every), ('best', checkpoint_cb_bestk)]:
+
+    if args.test is not None:
+        test_models = [('test', args.test)]
+    else:
+        test_models = [('last', checkpoint_cb_every.best_model_path), ('best', checkpoint_cb_bestk.best_model_path)]        
+    for name, cp in test_models:
         # cp = checkpoint_cb_bestk if args.use_best_model else checkpoint_cb_every
 
         ## validate model
         results_val = trainer.validate(
             model=model_task,
             dataloaders=val_dataloader, 
-            ckpt_path=cp.best_model_path,
+            ckpt_path=cp,
             verbose=True,
         )
 
@@ -524,9 +532,7 @@ def main(args):
         results_test = trainer.test(
             model=model_task,
             dataloaders=test_dataloader, 
-            ckpt_path=cp.best_model_path,
-            # ckpt_path=checkpoint_cb_every.best_model_path,
-            # ckpt_path=checkpoint_cb_bestk.best_model_path,
+            ckpt_path=cp,
             verbose=True,
         )
 
@@ -541,7 +547,7 @@ def main(args):
         results['name'] = logger.name
 
         save_pickle(results, os.path.join(save_path, f"results_{logger.version}_{name}.pkl"))
-        save_dict(results, os.path.join(save_path, f"results_{logger.version}_{name}.pkl"), as_str=True)
+        save_dict(results, os.path.join(save_path, f"results_{logger.version}_{name}.dict"), as_str=True)
 
 
 if __name__ == '__main__':

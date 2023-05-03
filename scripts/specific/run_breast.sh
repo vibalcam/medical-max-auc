@@ -1,14 +1,12 @@
 #!/bin/bash
 
 workers=14
-saved_folder='./saved_models'
+saved_folder='./other'
 
 d=breastmnist
 # ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
 
-
-# name=breastmnist
-name=breastmnist
+name=$d
 
 ## basic
 # python train.py \
@@ -25,7 +23,58 @@ name=breastmnist
 #     --augmentations basic \
 #     --use_best_model
 
+## best val auc
+# python train.py \
+#     --name auc_val \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 128 \
+#     --lr 0.1 \
+#     --weight_decay 1e-5 \
+#     --epoch_decay 0.03 \
+#     --margin 1.0 \
+#     --loss auc \
+#     --augmentations basic \
+#     --aug_args '' \
+#     --dropout 0
+
+
+
+
+
+
+
+
+
+
+
 ##################################################
+##################################################
+
+
+# ## best test auc
+# python train.py \
+#     --name auc_test \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 128 \
+#     --lr 0.1 \
+#     --weight_decay 1e-4 \
+#     --epoch_decay 0.03 \
+#     --margin 0.6 \
+#     --loss auc \
+#     --augmentations basic \
+#     --aug_args '' \
+#     --dropout 0.1
+
 
 # # bce
 # python train.py \
@@ -36,9 +85,8 @@ name=breastmnist
 #     --seed 123456 \
 #     --epochs 200 \
 #     --lr_steps 100 150 \
-#     --batch_size 128 \
-#     --lr 1e-2 \
-#     --weight_decay 1e-2 \
+#     --batch_size 256 \
+#     --lr 1e-3 \
 #     --loss_type bce \
 #     --augmentations convirt \
 #     --aug_args ra.gb \
@@ -55,6 +103,8 @@ name=breastmnist
 #     --lr_steps 100 150 \
 #     --batch_size 256 \
 #     --lr 1e-4 \
+#     --lr0 0.02 \
+#     --betas 0.9 0.9 \
 #     --weight_decay 1e-6 \
 #     --epoch_decay 3e-5 \
 #     --margin 1.0 \
@@ -62,7 +112,29 @@ name=breastmnist
 #     --augmentations convirt \
 #     --aug_args ra \
 #     --dropout 0 \
-#     --pretrained 'saved_models/breastmnist/breastmnist/convirt/bce/version_0/last.ckpt'
+#     --pretrained 'saved_models/breastmnist/breastmnist/convirt_bce_128/version_0/last.ckpt'
+
+# # bce + auc
+# python train.py \
+#     --name "${name}_pre" \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 256 \
+#     --lr 0.01 \
+#     --lr0 0.02 \
+#     --betas 0.9 0.9 \
+#     --weight_decay 1e-6 \
+#     --epoch_decay 3e-5 \
+#     --margin 1.0 \
+#     --loss_type comp \
+#     --augmentations convirt \
+#     --aug_args ra \
+#     --dropout 0 \
+#     --pretrained 'saved_models/breastmnist/breastmnist/convirt_bce_128/version_0/last.ckpt'
 
 ######################################
 
@@ -86,23 +158,43 @@ name=breastmnist
 ##     --dropout 0
 
 ## auc
-python train.py \
-    --name "${name}" \
-    --dataset $d \
-    --save_dir $saved_folder \
-    --workers $workers \
-    --seed 123456 \
-    --epochs 200 \
-    --lr_steps 100 150 \
-    --batch_size 256 \
-    --lr 1e-2 \
-    --weight_decay 1e-4 \
-    --epoch_decay 3e-2 \
-    --margin 1.0 \
-    --loss_type comp \
-    --augmentations convirt \
-    --aug_args ra \
-    --dropout 0
+# python train.py \
+#     --name "${name}" \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 256 \
+#     --lr 1e-2 \
+#     --weight_decay 1e-4 \
+#     --epoch_decay 3e-2 \
+#     --margin 1.0 \
+#     --loss_type comp \
+#     --augmentations convirt \
+#     --aug_args ra \
+#     --dropout 0
+
+# python train.py \
+#     --name auc_val \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 128 \
+#     --lr 0.1 \
+#     --lr0 0.2 \
+#     --betas 0.9 0.9 \
+#     --weight_decay 1e-5 \
+#     --epoch_decay 0.03 \
+#     --margin 1.0 \
+#     --loss comp \
+#     --augmentations basic \
+#     --aug_args '' \
+#     --dropout 0
 
 ######################################
 
@@ -138,9 +230,6 @@ python train.py \
 #     --dropout 0 \
 #     --pretrained 'saved_models/breastmnist/breastmnist_auc/convirt/pre/version_0/last.ckpt' \
 #     --warmup_epochs 25
-
-
-
 
 ##########################################
 ##########################################

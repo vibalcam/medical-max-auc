@@ -65,7 +65,17 @@ class ClassificationMetrics:
         y_pred = (preds >= 0.5).int()
 
         acc = metrics.accuracy_score(target, y_pred)
-        auc = metrics.roc_auc_score(target, preds)
+        auc = []
+        for k in range(target.shape[1]):
+            if len(np.unique(target[:,k])) == 2:
+                auc.append(metrics.roc_auc_score(target[:,k], preds[:,k]))
+            elif len(np.unique(target[:,k])) > 2:
+                raise NotImplementedError()
+        
+        if len(auc) > 0:
+            auc = np.mean(auc)
+        else:
+            auc = 0.5
 
         return {
             self.prefix + 'acc': acc,
