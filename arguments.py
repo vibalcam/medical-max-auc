@@ -51,5 +51,9 @@ parser.add_argument("--pretrained", type=str, default=None)
 parser.add_argument("--freeze", action='store_true')
 parser.add_argument("--pretrain_type", type=str, default='bce')
 parser.add_argument("--type_3d", type=str, default='3d')
+parser.add_argument("--model_per_task", action='store_true')
+
+# other
+parser.add_argument('--use_16', action='store_true', help='use 16 bit precision')
 
 args = parser.parse_args()

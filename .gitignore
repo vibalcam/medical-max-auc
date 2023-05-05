@@ -2,6 +2,7 @@
 best_models/
 best_val_models/
 
+other/
 tmp*/
 data/
 .vscode/

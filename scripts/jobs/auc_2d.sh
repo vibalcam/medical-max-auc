@@ -3,11 +3,17 @@
 name=lr_aug_batch
 datasets=("breastmnist" "pneumoniamnist" "chestmnist")
 
-lrs=(1e-1)
+# lrs=(1e-1)
+# bath_sizes=(128)
+# wds=(1e-3 1e-4 1e-5)
+# eps=(3e-2)
+# margin=(1.0 0.8 0.6)
+
+lrs=(1e-2)
 bath_sizes=(128)
-wds=(1e-3 1e-4 1e-5)
+wds=(1e-4 1e-5)
 eps=(3e-2)
-margin=(1.0 0.8 0.6 0.5)
+margin=(1.0 0.6)
 dropouts=(0 0.1)
 
 # augs=(ra ra.gb ra.et ra.gb.cj ra.et.cj)
