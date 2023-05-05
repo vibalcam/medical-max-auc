@@ -1,6 +1,6 @@
 # custom
 best_models/
-best_val_models/
+experiments/
 
 other/
 tmp*/
