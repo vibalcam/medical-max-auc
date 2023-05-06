@@ -52,4 +52,7 @@ parser.add_argument("--freeze", action='store_true')
 parser.add_argument("--pretrain_type", type=str, default='bce')
 parser.add_argument("--type_3d", type=str, default='3d')
 
+# ensemble model
+parser.add_argument('--num_models', default=3, type=int, help='number of models used in ensemble')
+
 args = parser.parse_args()
