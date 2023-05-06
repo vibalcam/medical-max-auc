@@ -3,7 +3,7 @@
 workers=14
 saved_folder='./other'
 
-d=chestmnist
+d=nodulemnist3d
 # ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
 
 name=$d
