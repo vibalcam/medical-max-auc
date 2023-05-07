@@ -1,14 +1,13 @@
 #!/bin/bash
 
-workers=6
-saved_folder='./saved_models'
+workers=14
+saved_folder='./other'
 
-datasets=("nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
+d=nodulemnist3d
+# ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
 
-d="${datasets[$1]}"
 name=$d
 
-## bce
 # python train.py \
 #     --name basic \
 #     --dataset $d \
@@ -24,23 +23,26 @@ name=$d
 #     --use_best_model \
 #     --type_3d '3d'
 
-######################################################
-
-## auc
+## best val auc
 python train.py \
     --name $name \
     --dataset $d \
     --save_dir $saved_folder \
     --workers $workers \
     --seed 123456 \
-    --epochs 100 \
-    --lr_steps 50 75 \
+    --epochs 200 \
+    --lr_steps 100 150 \
     --batch_size 32 \
-    --lr $lr \
-    --weight_decay $wd \
-    --epoch_decay $ep \
-    --margin $m \
+    --lr 1e-1 \
+    --weight_decay 1e-4 \
+    --epoch_decay 3e-2 \
+    --margin 0.6 \
     --loss auc \
     --augmentations basic \
-    --dropout $drop \
-    --type_3d '3d'
+    --aug_args '' \
+    --dropout 0 \
+    --type_3d '3d' \
+    --evaluate_every 5 \
+    --early_stopping_patience 10 \
+    --resize 80 \
+    --use_16

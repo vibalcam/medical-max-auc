@@ -26,7 +26,7 @@
 
 # rm core*
 
-workers=7
+workers=10
 saved_folder='./other'
 
 name="${1}_${2}"
@@ -56,4 +56,7 @@ python train.py \
     --loss auc \
     --augmentations basic \
     --aug_args '' \
-    --dropout $dr
+    --dropout $dr \
+    --evaluate_every 5 \
+	--early_stopping_patience 10 \
+    --use_16

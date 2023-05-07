@@ -77,6 +77,12 @@ class ClassificationMetrics:
         else:
             auc = 0.5
 
+        try:
+            auc_test = metrics.roc_auc_score(target, preds)
+            assert np.isclose(auc_test, auc)
+        except:
+            pass
+
         return {
             self.prefix + 'acc': acc,
             self.prefix + 'auc': auc,
