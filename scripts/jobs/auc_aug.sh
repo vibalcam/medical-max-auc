@@ -1,14 +1,10 @@
 #!/bin/bash
 
-name=lr_aug_batch
-datasets=("nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
+name=aug_hp
+# datasets=("nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
 
-augs=(ra ra.gb ra.et ra.gb.cj ra.et.cj)
-
-counter=0
-d=$1
-
+augs=(ra gb et cj rc)
 
 for au in "${augs[@]}";do
-    ./$1 $name $(uuidgen) $d $b $lr $wd $ep $m $dr
+    ./$1 $name $(uuidgen) $au
 done

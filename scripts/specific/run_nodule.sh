@@ -43,4 +43,6 @@ python train.py \
     --dropout 0 \
     --type_3d '3d' \
     --evaluate_every 5 \
-    --early_stopping_patience 10
+    --early_stopping_patience 10 \
+    --resize 80 \
+    --use_16

@@ -39,4 +39,5 @@ python train.py \
     --loss auc \
     --augmentations basic \
     --aug_args '' \
-    --dropout 0
+    --dropout 0 \
+    --resize 128

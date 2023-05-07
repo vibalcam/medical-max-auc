@@ -132,8 +132,9 @@ class Module(pl.LightningModule):
     def configure_optimizers(self):
         self.lr_scheduler = SchedulerCollection()
         optims = []
+        n_optims = self.hparams.num_outputs if self.args.model_per_task else 1
 
-        for k in range(self.hparams.num_outputs):
+        for k in range(n_optims):
             if self.args.model_per_task:
                 m = self.model[k]
                 l = self.criterion[k]
@@ -265,6 +266,9 @@ class Module(pl.LightningModule):
         return loss
     
     def on_train_epoch_end(self) -> None:
+        if self.args.loss_type == 'pre':
+            return
+        
         self.log_dict(self.train_metrics.compute())
         self.train_metrics.reset()
         return super().on_train_epoch_end()
@@ -291,6 +295,9 @@ class Module(pl.LightningModule):
             self.lr_scheduler.update(None)
 
     def on_validation_epoch_end(self) -> None:
+        if self.args.loss_type == 'pre':
+            return
+        
         self.log_dict(self.val_metrics.compute())
         self.val_metrics.reset()
         return super().on_validation_epoch_end()
@@ -398,11 +405,13 @@ def main(args):
     # Logger
     ###########################
 
-    logger_base = os.path.join(args.save_dir, args.dataset, args.name)
+    # logger_base = os.path.join(args.save_dir, args.dataset, args.name)
+    logger_base = os.path.join(args.save_dir, args.dataset)
     if args.resume is None:
         logger = pl.loggers.TensorBoardLogger(
             save_dir=logger_base,
-            name=f"{args.augmentations}_{args.loss_type}_{args.batch_size}", 
+            name=args.name, 
+            # name=f"{args.augmentations}_{args.loss_type}_{args.batch_size}", 
             # log_graph=True,
         )
     else:
@@ -531,7 +540,7 @@ def main(args):
     # # batch_size = tuner.scale_batch_size(model_task, train_dataloaders=train_dataloader)
     # return
 
-    # fit the model
+    ## fit the model
     if args.test is None:
         print("Fitting model...")
         trainer.fit(
@@ -543,7 +552,6 @@ def main(args):
 
     if args.loss_type == 'pre':
         return
-
 
     if args.test is not None:
         test_models = [('test', args.test)]
