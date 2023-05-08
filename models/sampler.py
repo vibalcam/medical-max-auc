@@ -168,12 +168,27 @@ class DualSampler(ImbalancedDataSampler):
                   num_tasks=None, 
                   sampling_rate=None):
         super().__init__(dataset, batch_size, labels, shuffle, num_pos, num_tasks, sampling_rate)
+
+        self.pos_indices_multi = self.pos_indices
+        self.neg_indices_multi = self.neg_indices
         
         # sampling parameters
         assert self.num_tasks > 1, 'Labels are not binary, e.g., [0, 1]!'
-        self.pos_len = self.class_counts[0][0]
-        self.neg_len = self.class_counts[0][1]
-        self.pos_indices, self.neg_indices = self.pos_indices[0], self.neg_indices[0]
+        self.select_task(0)
+        
+        # self.pos_len = self.class_counts[0][0]
+        # self.neg_len = self.class_counts[0][1]
+        # self.pos_indices, self.neg_indices = self.pos_indices[0], self.neg_indices[0]
+        # np.random.shuffle(self.pos_indices)
+        # np.random.shuffle(self.neg_indices)
+        # self.num_batches = max(self.pos_len//self.num_pos, self.neg_len//self.num_neg)
+        # self.sampled =  [] #np.array([], dtype=np.int32)
+        # self.pos_ptr, self.neg_ptr = 0, 0
+
+    def select_task(self, idx):
+        self.pos_len = self.class_counts[idx][0]
+        self.neg_len = self.class_counts[idx][1]
+        self.pos_indices, self.neg_indices = self.pos_indices[idx], self.neg_indices[idx]
         np.random.shuffle(self.pos_indices)
         np.random.shuffle(self.neg_indices)
         self.num_batches = max(self.pos_len//self.num_pos, self.neg_len//self.num_neg)

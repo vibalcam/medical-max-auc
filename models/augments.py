@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import torch
 from torchvision import transforms as T
@@ -48,7 +49,6 @@ def convirt(ndim, args, mean=0.5, std=0.5):
         raise NotImplementedError()
     
     d_transf = {
-        'h': T.RandomHorizontalFlip(),
         'ra': T.RandomApply([
                 T.RandomAffine(
                     degrees=(-5,5),
@@ -71,32 +71,46 @@ def convirt(ndim, args, mean=0.5, std=0.5):
                     fill=128,
                 )
             ], p=0.2),
-        'rc': T.RandomResizedCrop(
-                (image_size, image_size),
-                scale=(0.8,1),
-            ),
+        'rc': T.RandomApply([
+                T.RandomResizedCrop(
+                    image_size,
+                    scale=(0.7, 1),
+                    antialias=True,
+                )
+            ], p=0.2),
+        'm': [
+            lambda x: x * np.random.uniform(),
+            lambda x: x * 0.5,
+        ]
     }
     
     train_transform = []
+    eval_transform = []
     for k in args.aug_args.split('.'):
-        if ndim == 4 and k == 'gb':
+        if ndim == 4 and k == 'cj':
+            warnings.warn('ColorJitter is not supported for 3D images.')
             continue
 
-        train_transform.append(d_transf[k])
+        t = d_transf[k]
+        if isinstance(t, list) or isinstance(t, tuple):
+            train_transform.append(t[0])
+            eval_transform.append(t[1])
+        else:
+            train_transform.append(t)
     
-    train_transform.insert(0, to_tensor)
-    # if ndim == 4:
-    #     train_transform.insert(0, to_tensor)
-    # else:
-    #     train_transform.append(to_tensor)
+    print('==> train_transform', train_transform)
 
+    train_transform.insert(0, to_tensor)
     train_transform.append(T.Normalize(mean, std))
 
-    eval_transform = [
-        # T.Grayscale(3),
-        to_tensor,
-        T.Normalize(mean, std),
-    ]
+    eval_transform.insert(0, to_tensor)
+    eval_transform.append(T.Normalize(mean, std))
+
+    # eval_transform = [
+    #     # T.Grayscale(3),
+    #     to_tensor,
+    #     T.Normalize(mean, std),
+    # ]
 
     if args.resize is not None:
         train_transform.insert(

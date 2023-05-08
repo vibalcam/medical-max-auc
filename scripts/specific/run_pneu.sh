@@ -37,7 +37,7 @@ python train.py \
     --epoch_decay 0.03 \
     --margin 1.0 \
     --loss auc \
-    --augmentations basic \
-    --aug_args '' \
+    --augmentations convirt \
+    --aug_args 'rc' \
     --dropout 0 \
     --resize 128

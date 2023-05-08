@@ -38,8 +38,8 @@ python train.py \
     --epoch_decay 3e-3 \
     --margin 1.0 \
     --loss auc \
-    --augmentations basic \
-    --aug_args '' \
+    --augmentations convirt \
+    --aug_args 'rc' \
     --dropout 0 \
     --type_3d '3d' \
     --evaluate_every 5 \
@@ -62,8 +62,8 @@ python train.py \
 #     --epoch_decay 1e-3 \
 #     --margin 1.0 \
 #     --loss auc \
-#     --augmentations basic \
-#     --aug_args '' \
+#     --augmentations convirt \
+#     --aug_args $1 \
 #     --dropout 0.1 \
 #     --type_3d '3d' \
 #     --evaluate_every 5 \
