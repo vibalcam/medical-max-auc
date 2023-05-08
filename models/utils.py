@@ -59,6 +59,9 @@ class ClassificationMetrics:
         preds = torch.cat(self.preds, dim=0)
         
         return self._get_results(target, preds)
+
+    def __len__(self) -> int:
+        return len(self.target)
     
     def _get_results(self, target, preds):
         y_pred = (preds >= 0.5).int()

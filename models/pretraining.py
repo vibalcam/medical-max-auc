@@ -27,7 +27,7 @@ def similarity_loss(hidden1, target, T=0.1, device=None, LARGE_NUM=1e9):
         # loss = -(((2*labels - 1) * (1-masks) * logits_aa)).mean()
         
         labels = labels.float().mean(0)
-        loss = F.mse_loss(logits_aa*(1-masks), labels)
+        loss = F.l1_loss(logits_aa*(1-masks), labels)
         return loss
 
 
