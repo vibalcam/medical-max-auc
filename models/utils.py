@@ -14,7 +14,6 @@ import glob
 from scipy.sparse import csr_matrix
 import torch.nn as nn
 import numpy as np
-from .batchnorm import SynchronizedBatchNorm3d, SynchronizedBatchNorm2d
 from sklearn import metrics
 import argparse
 

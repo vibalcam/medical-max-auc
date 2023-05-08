@@ -589,6 +589,8 @@ def main(args):
         save_pickle(results, os.path.join(save_path, f"results_{logger.version}_{name}.pkl"))
         save_dict(results, os.path.join(save_path, f"results_{logger.version}_{name}.dict"), as_str=True)
 
+    return results
+
 
 if __name__ == '__main__':
     from arguments import args as a
