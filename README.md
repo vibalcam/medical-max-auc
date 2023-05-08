@@ -9,7 +9,7 @@
 
     (The flag `--use_best_model` saves as `last.ckpt` the epoch with the highest validation AUC)
 
-    For **ChestMNIST**, we use early stopping (patience 50 epochs) and mixed-16 precision for faster training. The following grid search is used:
+    For **ChestMNIST**, we used early stopping (patience 50 epochs) and mixed-16 precision for faster training. The following grid search is used:
     - learning rate: 1e-2
     - batch size: 128
     - weight decay: 1e-4, 1e-5
@@ -31,7 +31,7 @@
     ./scripts/experiments/auc_2d.sh
     ```
 
-    For the **3D datasets**, the following is used:
+    For the **3D datasets**, we used early stopping (patience 50 epochs) and the following grid search:
     - learning rate: 1e-1, 1e-2
     - batch size: 32
     - weight decay: 1e-4, 1e-5
@@ -50,14 +50,41 @@
 
 3. **Grid search to find select augmentation used.**
 
-    For each augmentation and dataset, we train a model with the hyperparameters obtained in previous steps for that dataset. We then select...
+    For each augmentation and dataset, we train a model with the best hyperparameters obtained in previous steps for that dataset. We train for 200 epochs and choose the augmentation that provides the highest validation AUC.
 
-    TODOOOOOOOOOOOOOOOOOO
+    The script to run the search is the following:
+    ```
+    ./scripts/experiments/run_aug.sh
+    ```
+
+    For the **2D datasets**, the following augmentations have been tested:
+    - RandomAffine ([-5,5] degrees)
+    - Gaussian Blur ([0.1,2]) 
+    - Random Resized Crop (scale [0.7, 1])
+
+    For the **3D datasets**, we used early stopping (patience 50 epochs) and mixed-16 precision. The following augmentations have been tested:
+    - RandomAffine ([-5,5] degrees)
+    - Elastic Transform (alpha 0.1, sigma 0.1) 
+    - Random Resized Crop (scale [0.7, 1]) 
+    - Regularization from MedMNIST v2 paper, i.e., multiply the training set by a random value in [0,1] during training and multiply the images by a fixed coefficient of 0.5 during evaluation.
+
+    For **ChestMNIST**, we used early stopping (patience 50 epochs) and mixed-16 precision for faster training. Additionally, for each augmentation, we select the model with the highest validation AUC. 
+    The following augmentations have been tested:
+    - RandomAffine ([-5,5] degrees)
+    - Color Jitter (brightness 0.1, contrast 0.1) 
+    - Gaussian Blur ([0.1,2]) 
+    - Elastic Transform (alpha 0.1, sigma 0.1) 
+    - Random Resized Crop (scale [0.7, 1])
 
 
 
 
-
+- [X] ~~*readme*~~ [2023-05-08]
+- [X] ~~*selection scheme*~~ [2023-05-08]
+- [ ] check selections for adrenal
+- [ ] run all
+- [ ] test run aug
+- [ ] run all and test
 
 
 
