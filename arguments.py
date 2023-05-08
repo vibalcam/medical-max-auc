@@ -16,7 +16,7 @@ parser.add_argument('--debug', action='store_true', help='To debug code')
 # optimizer options
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
 parser.add_argument('-wd', '--weight_decay', default=1e-2, type=float, metavar='W', help='weight decay (default: 1e-6)', dest='weight_decay')
-parser.add_argument('--loss_type', default='auc', type=str, help='loss type', choices=['auc', 'bce', 'comp'])
+parser.add_argument('--loss_type', default='auc', type=str, help='loss type', choices=['auc', 'bce', 'comp', 'pre'])
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, metavar='LR', help='initial (base) learning rate')
 parser.add_argument('--optimizer', default='adamw', type=str, choices=['sgd', 'adamw'])
 parser.add_argument('--warmup_epochs', default=0, type=float, help='number of warmup epochs')
@@ -33,9 +33,10 @@ parser.add_argument('--margin', default=1.0, type=float)
 # dataset 
 parser.add_argument('--save_dir', default='./saved_models/', type=str)
 parser.add_argument('--results_file', default='results', type=str)
-parser.add_argument('--dataset', type=str, default="breastmnist", choices=["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",])
+parser.add_argument('--dataset', type=str, default="breastmnist", choices=["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d"])
 parser.add_argument('--augmentations', type=str, default="basic")
 parser.add_argument('--aug_args', type=str, default='gn.ra')
+parser.add_argument('--resize', type=int, default=None)
 parser.add_argument('--sampler', type=float, default=None)
 parser.add_argument('--train_on_val', default=None, type=str, help='train on train and validation sets')
 
@@ -44,7 +45,6 @@ parser.add_argument('--save_every_epochs', default=5, type=int, help='number of 
 parser.add_argument('-e', '--evaluate_every', default=5, type=float, help='evaluate model on validation set every # epochs')
 parser.add_argument('--early_stopping_patience', default=None, type=int, help='patience for early stopping')
 parser.add_argument('--use_best_model', action='store_true', help='use best model for evaluation')
-parser.add_argument('--test', type=str, default=None, help='path to model to test')
 
 # other model
 parser.add_argument('--dropout', type=float, default=None, help='dropout rate')
@@ -52,6 +52,11 @@ parser.add_argument("--pretrained", type=str, default=None)
 parser.add_argument("--freeze", action='store_true')
 parser.add_argument("--pretrain_type", type=str, default='bce')
 parser.add_argument("--type_3d", type=str, default='3d')
+parser.add_argument("--model_per_task", action='store_true')
+
+# other
+parser.add_argument('--use_16', action='store_true', help='use 16 bit precision')
+parser.add_argument('--test', type=str, default=None, help='path to model to test')
 
 # ensemble model
 parser.add_argument('--num_models', default=3, type=int, help='number of models used in ensemble')

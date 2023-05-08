@@ -20,7 +20,7 @@ import torch.utils.data
 import torch.utils.data.distributed
 from torch.utils.data import DataLoader
 
-from libauc.losses import AUCMLoss, CompositionalAUCLoss
+from libauc.losses import AUCMLoss, CompositionalAUCLoss, AUCM_MultiLabel, AUCM_MultiLabel_V2
 from libauc import optimizers
 import medmnist 
 from models import augments
@@ -52,13 +52,22 @@ class Module(pl.LightningModule):
         self.lr_scheduler = None
         # get metrics and model
         self.define_metrics()
-        self.model = self.create_model(self.hparams.num_outputs)
+        if self.args.model_per_task:
+            self.model = nn.ModuleList([self.create_model(1) for _ in range(num_outputs)])
+        else:
+            self.model = self.create_model(num_outputs)
 
         # define loss function
         if self.args.loss_type == 'bce':
             self.criterion = nn.BCEWithLogitsLoss()
         elif args.loss_type == 'auc':
-            self.criterion = AUCMLoss()
+            if num_outputs == 1:
+                self.criterion = AUCMLoss()
+            else:
+                if self.args.model_per_task:
+                    self.criterion = [AUCMLoss() for _ in range(num_outputs)]
+                else:
+                    self.criterion = AUCM_MultiLabel(num_classes=num_outputs)
         elif args.loss_type == 'comp':
             self.criterion = CompositionalAUCLoss(last_activation=None)
         elif args.loss_type == 'pre':
@@ -122,63 +131,80 @@ class Module(pl.LightningModule):
 
     def configure_optimizers(self):
         self.lr_scheduler = SchedulerCollection()
-        ## optimizer
-        if self.args.loss_type == 'auc':
-            optimizer = optimizers.PESG(
-                self.model, 
-                loss_fn=self.criterion, 
-                lr=self.lr, 
-                momentum=self.args.momentum,
-                weight_decay=self.args.weight_decay,
-                epoch_decay=self.args.epoch_decay,
-                margin=self.args.margin,
-            )
-        elif self.args.loss_type == 'comp':
-            optimizer = optimizers.PDSCA(
-                self.model, 
-                loss_fn=self.criterion, 
-                lr=self.args.lr, 
-                lr0=self.args.lr0,
-                beta1=self.args.betas[0],
-                beta2=self.args.betas[1],
-                # momentum=self.args.momentum,
-                margin=self.args.margin,
-                weight_decay=self.args.weight_decay,
-                epoch_decay=self.args.epoch_decay,
-            )
-            # self.lr_scheduler.add(
-            #     StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs, key='lr0')
-            # )
-        else:
-            if self.args.optimizer == 'sgd':
-                optimizer = torch.optim.SGD(
-                    self.model.parameters(), 
-                    self.lr,
-                    weight_decay=self.args.weight_decay,
-                    momentum=self.args.momentum
-                )
-            elif self.args.optimizer == 'adamw':
-                optimizer = torch.optim.AdamW(
-                    self.model.parameters(), 
-                    self.lr,
-                    weight_decay=self.args.weight_decay
-                )
-            else:
-                raise NotImplementedError("Optimizer not implemented")
+        optims = []
+        n_optims = self.hparams.num_outputs if self.args.model_per_task else 1
 
-        ## for lr scheduler
-        self.lr_scheduler.add(
-            StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs)
-        )
+        for k in range(n_optims):
+            if self.args.model_per_task:
+                m = self.model[k]
+                l = self.criterion[k]
+            else:
+                m = self.model
+                l = self.criterion
+            ## optimizer
+            if self.args.loss_type == 'auc':
+                optimizer = optimizers.PESG(
+                    m, 
+                    loss_fn=l, 
+                    lr=self.lr, 
+                    momentum=self.args.momentum,
+                    weight_decay=self.args.weight_decay,
+                    epoch_decay=self.args.epoch_decay,
+                    margin=self.args.margin,
+                )
+            elif self.args.loss_type == 'comp':
+                optimizer = optimizers.PDSCA(
+                    m, 
+                    loss_fn=l, 
+                    lr=self.args.lr, 
+                    lr0=self.args.lr0,
+                    beta1=self.args.betas[0],
+                    beta2=self.args.betas[1],
+                    # momentum=self.args.momentum,
+                    margin=self.args.margin,
+                    weight_decay=self.args.weight_decay,
+                    epoch_decay=self.args.epoch_decay,
+                )
+                # self.lr_scheduler.add(
+                #     StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs, key='lr0')
+                # )
+            else:
+                if self.args.optimizer == 'sgd':
+                    optimizer = torch.optim.SGD(
+                        m.parameters(), 
+                        self.lr,
+                        weight_decay=self.args.weight_decay,
+                        momentum=self.args.momentum
+                    )
+                elif self.args.optimizer == 'adamw':
+                    optimizer = torch.optim.AdamW(
+                        m.parameters(), 
+                        self.lr,
+                        weight_decay=self.args.weight_decay
+                    )
+                else:
+                    raise NotImplementedError("Optimizer not implemented")
+
+            optims.append(optimizer)
+            ## for lr scheduler
+            self.lr_scheduler.add(
+                StepSchedulerWithWarmup(optimizer, self.lr, self.args.lr_steps, self.args.warmup_epochs)
+            )
 
         # self.lr_scheduler = CosineSchedulerWithWarmup(optimizer, self.lr, self.args.warmup_epochs, self.args.epochs, self.lr / 1e2)
+
+        if len(optims) == 1:
+            return optims[0]
 
         return optimizer
     
     def forward(self, x):
         if len(self.hparams.img_shape) == 4 and self.args.type_3d == 'channels':
             x = x[:,0,...]
-        return self.model(x)
+        if self.args.model_per_task:
+            return torch.cat([m(x) for m in self.model], 1)
+        else:
+            return self.model(x)
 
     def on_train_epoch_start(self):
         # adjust_learning_rate(self.optimizers(), self.lr, self.current_epoch, self.args)
@@ -188,8 +214,14 @@ class Module(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, target = batch
         output = self(x)
+        target = target.float()
         if self.args.loss_type=='auc':
-            loss = self.criterion(torch.sigmoid(output), target.float())
+            if self.args.model_per_task:
+                pred = torch.sigmoid(output)
+                loss = [self.criterion[k](pred[:,k], target[:,k]) for k in range(output.shape[1])]
+                loss = torch.cat(loss).mean()
+            else:
+                loss = self.criterion(torch.sigmoid(output), target)
         elif self.args.loss_type=='pre':
             loss = self.criterion(
                 output, 
@@ -198,7 +230,7 @@ class Module(pl.LightningModule):
                 device=self.device,
             )
         else:
-            loss = self.criterion(output, target.float())
+            loss = self.criterion(output, target)
 
         if output.isnan().any():
             warnings.warn("Nan values being generated")
@@ -234,6 +266,9 @@ class Module(pl.LightningModule):
         return loss
     
     def on_train_epoch_end(self) -> None:
+        if self.args.loss_type == 'pre':
+            return
+        
         self.log_dict(self.train_metrics.compute())
         self.train_metrics.reset()
         return super().on_train_epoch_end()
@@ -260,6 +295,9 @@ class Module(pl.LightningModule):
             self.lr_scheduler.update(None)
 
     def on_validation_epoch_end(self) -> None:
+        if self.args.loss_type == 'pre':
+            return
+        
         self.log_dict(self.val_metrics.compute())
         self.val_metrics.reset()
         return super().on_validation_epoch_end()
@@ -383,11 +421,13 @@ def main(args):
     # Logger
     ###########################
 
-    logger_base = os.path.join(args.save_dir, args.dataset, args.name)
+    # logger_base = os.path.join(args.save_dir, args.dataset, args.name)
+    logger_base = os.path.join(args.save_dir, args.dataset)
     if args.resume is None:
         logger = pl.loggers.TensorBoardLogger(
             save_dir=logger_base,
-            name=f"{args.augmentations}_{args.loss_type}_{args.batch_size}", 
+            name=args.name, 
+            # name=f"{args.augmentations}_{args.loss_type}_{args.batch_size}", 
             # log_graph=True,
         )
     else:
@@ -476,11 +516,12 @@ def main(args):
     ###########################
 
     # may increase performance but lead to unstable training
-    # torch.set_float32_matmul_precision("high")
+    if args.use_16:
+        torch.set_float32_matmul_precision("medium")
     trainer = pl.Trainer(
         accelerator='gpu' if not args.debug else 'cpu',
         deterministic=True if args.seed is not None else False,
-        # precision="16-mixed",   # reduce memory, can improve performance but might lead to unstable training
+        precision="16-mixed" if args.use_16 else '32-true',   # reduce memory and faster training, but might lead to unstable training
         
         max_epochs=args.epochs,
         # max_time="00:1:00:00",
@@ -515,7 +556,7 @@ def main(args):
     # # batch_size = tuner.scale_batch_size(model_task, train_dataloaders=train_dataloader)
     # return
 
-    # fit the model
+    ## fit the model
     if args.test is None:
         print("Fitting model...")
         trainer.fit(
@@ -527,7 +568,6 @@ def main(args):
 
     if args.loss_type == 'pre':
         return
-
 
     if args.test is not None:
         test_models = [('test', args.test)]
