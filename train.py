@@ -26,6 +26,7 @@ import medmnist
 from models import augments
 from medmnist import INFO
 from models.sampler import DualSampler
+from torchsampler import ImbalancedDatasetSampler
 
 
 class Module(pl.LightningModule):
@@ -374,16 +375,18 @@ def main(args):
     # test_labels[test_labels == args.pos_class] = 1
     # test_labels[test_labels == 999] = 0
 
-    # print(f"==> Positive/negative samples: {(train_dataset.labels == 1).sum()}/{(train_dataset.labels == 0).sum()}=>{(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]}")
+    print(f"==> Positive/negative samples: {(train_dataset.labels == 1).sum()}/{(train_dataset.labels == 0).sum()}=>{(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]}")
 
-    if args.sampler is not None:
+    if args.oversample is not None:
+        sampler=ImbalancedDatasetSampler(train_dataset)
+    elif args.sampler is not None:
         sampler = DualSampler(
             dataset=train_dataset, 
             batch_size=args.batch_size, 
             shuffle=True, 
             sampling_rate=args.sampler,
             #sampling_rate=(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]
-        )
+        ) 
     else:
         sampler = None
 

@@ -8,7 +8,8 @@ log_folder='./logs_txt'
 # datasets=("chestmnist" "breastmnist" "pneumoniamnist")
 #  "nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
 # datasets=("adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
-datasets=("vesselmnist3d" "synapsemnist3d")
+# datasets=("vesselmnist3d" "synapsemnist3d")
+datasets=("nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
 
 # loop through indices of datasets
 for (( i=0; i<${#datasets[@]}; i++ ))
@@ -27,7 +28,10 @@ do
         --epochs 200 \
         --lr_steps 50 75 \
         --batch_size 32 \
-        --lr 1e-3 \
+        --lr 1e-1 \
+        --weight_decay 1e-4 \
+        --epoch_decay 3e-2 \
+        --margin 0.6 \
         --loss auc \
         --augmentations basic \
         --type_3d 'channels' \

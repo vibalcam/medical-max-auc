@@ -10,19 +10,20 @@
 # import pytorch_lightning as pl
 # from train import Module as GeneralModel
 
-import argparse
-from functools import partial
-import gc
-import math
+# import argparse
+# from functools import partial
+# import gc
+# import math
 import os
-from typing import Any, Optional
+# from typing import Any, Optional
 import warnings
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from models.pretraining import similarity_loss
-from models.schedulers import CosineSchedulerWithWarmup, SchedulerCollection, StepSchedulerWithWarmup
-from models.utils import ClassificationMetrics, get_logger_name, model_to_syncbn, save_dict, save_pickle, set_seed
+# from models.schedulers import CosineSchedulerWithWarmup, SchedulerCollection, StepSchedulerWithWarmup
+# from models.utils import ClassificationMetrics, get_logger_name, model_to_syncbn, save_dict, save_pickle, set_seed
+from models.utils import ClassificationMetrics, save_dict, save_pickle, set_seed
 
-import numpy as np
+# import numpy as np
 import lightning.pytorch as pl
 import torch
 import torch.nn as nn
@@ -37,9 +38,10 @@ from libauc import optimizers
 import medmnist 
 from models import augments
 from medmnist import INFO
-from models.sampler import DualSampler
+import numpy as np
+# from models.sampler import DualSampler
 from train import Module as GeneralModel
-import copy
+from torchsampler import ImbalancedDatasetSampler
 
 
 class EnsembleModel(pl.LightningModule):
@@ -219,12 +221,25 @@ class EnsembleModel(pl.LightningModule):
         self.test_metrics.update(target.int(), torch.sigmoid(output))
 
     def train_dataloader(self):
-        train_size = len(self.train_dataset)
-        # split_sizes = [train_size // 3] * 3  # split the dataset into 3 equal parts
-        train_sets = torch.utils.data.random_split(self.train_dataset, [0.33, 0.33, 0.34])
+        # train_size = len(self.train_dataset)
+        if self.args.train_on_val is not None:
+            concat_dataset=torch.utils.data.ConcatDataset([self.train_dataset, self.val_dataset]),
+            train_sets = torch.utils.data.random_split(concat_dataset, [0.33, 0.33, 0.34])
+        else:
+            train_sets = torch.utils.data.random_split(self.train_dataset, [0.33, 0.33, 0.34])
         loaders = {}
         for i in range(len(train_sets)):
-            loaders["d"+str(i)] = DataLoader(train_sets[i], batch_size=self.args.batch_size, num_workers=self.args.workers)
+            if self.args.oversample is not None:
+                train_set_indices = train_sets[i].indices
+                subset_labels = np.squeeze(self.train_dataset.labels[train_set_indices])
+                loaders["d"+str(i)] = DataLoader(train_sets[i],
+                                                 batch_size=self.args.batch_size,
+                                                 sampler=ImbalancedDatasetSampler(train_sets[i], labels=subset_labels),
+                                                 num_workers=self.args.workers)
+            else:
+                loaders["d"+str(i)] = DataLoader(train_sets[i],
+                                                 batch_size=self.args.batch_size, 
+                                                 num_workers=self.args.workers)
         return loaders
     
     def val_dataloader(self):
@@ -274,6 +289,8 @@ def main(args):
     train_dataset = DataClass(split='train', transform=train_transform, download=True, as_rgb=True)
     val_dataset = DataClass(split='val', transform=eval_transform, download=True, as_rgb=True)
     test_dataset = DataClass(split='test', transform=eval_transform, download=True, as_rgb=True)
+    # if args.train_on_val:
+    #     val_for_train_dataset = DataClass(split='val', transform=train_transform, download=True, as_rgb=True)
 
     ensemble_model = EnsembleModel(args,
                                    img_shape=train_dataset[0][0].shape, 

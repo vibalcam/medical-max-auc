@@ -60,5 +60,6 @@ parser.add_argument('--test', type=str, default=None, help='path to model to tes
 
 # ensemble model
 parser.add_argument('--num_models', default=3, type=int, help='number of models used in ensemble')
+parser.add_argument('--oversample', default=None, type=str, help='number of models used in ensemble')
 
 args = parser.parse_args()
