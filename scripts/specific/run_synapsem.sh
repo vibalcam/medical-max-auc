@@ -39,8 +39,8 @@ python train.py \
     --epoch_decay 3e-2 \
     --margin 1.0 \
     --loss auc \
-    --augmentations basic \
-    --aug_args '' \
+    --augmentations convirt \
+    --aug_args 'et' \
     --dropout 0 \
     --type_3d '3d' \
     --evaluate_every 5 \
