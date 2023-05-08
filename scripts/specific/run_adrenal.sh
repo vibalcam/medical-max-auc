@@ -1,7 +1,9 @@
 #!/bin/bash
 
-workers=14
-saved_folder='./other'
+workers=8
+# saved_folder='./other'
+saved_folder='./train_and_val'
+
 
 d=adrenalmnist3d
 # ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
@@ -24,7 +26,29 @@ name=$d
 #     --type_3d '3d'
 
 ## best val auc
-python train.py \
+# python train.py \
+#     --name $name \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 32 \
+#     --lr 0.1 \
+#     --weight_decay 1e-4 \
+#     --epoch_decay 3e-2 \
+#     --margin 0.6 \
+#     --loss auc \
+#     --augmentations basic \
+#     --aug_args '' \
+#     --dropout 0 \
+#     --type_3d '3d' \
+#     --evaluate_every 5 \
+#     --early_stopping_patience 10
+
+# train on validation and train datasets
+python3 train.py \
     --name $name \
     --dataset $d \
     --save_dir $saved_folder \
@@ -38,12 +62,14 @@ python train.py \
     --epoch_decay 3e-2 \
     --margin 0.6 \
     --loss auc \
-    --augmentations basic \
-    --aug_args '' \
+    --augmentations convirt \
+    --aug_args 'et' \
     --dropout 0 \
     --type_3d '3d' \
     --evaluate_every 5 \
-    --early_stopping_patience 10
+    --train_on_val 'true' \
+    --early_stopping_patience 5
+
 
 # ## best val auc resized to 80
 # python train.py \

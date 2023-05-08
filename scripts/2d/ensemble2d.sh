@@ -1,12 +1,12 @@
 !/bin/bash
 
-workers=8
+workers=3
 
-saved_folder='./tmp'
+saved_folder='./ensemble_train_and_val'
 log_folder='./logs_txt'
 
-datasets=("breastmnist" "pneumoniamnist")
-# datasets=("breastmnist")
+# datasets=("breastmnist" "pneumoniamnist")
+datasets=("chestmnist")
 #  "nodulemnist3d" "adrenalmnist3d" "vesselmnist3d" "synapsemnist3d")
 
 # loop through indices of datasets
@@ -17,26 +17,61 @@ do
 
     # basic training
     echo "Starting basic training for dataset $d"
+#     python3 train_ensemble.py \
+#         --name default \
+#         --dataset $d \
+#         --save_dir './ensemble_train_and_val' \
+#         --workers $workers \
+#         --seed 123456 \
+#         --epochs 100 \
+#         --lr_steps 50 75 \
+#         --batch_size 128 \
+#         --lr 1e-1 \
+#         --weight_decay 1e-4 \
+#         --epoch_decay 3e-2 \
+#         --margin 0.6 \
+#         --loss auc \
+#         --train_on_val 'true' \
+#         --early_stopping_patience 5
+
+#     python3 train_ensemble.py \
+#         --name default \
+#         --dataset $d \
+#         --save_dir './ensemble_new' \
+#         --workers $workers \
+#         --seed 123456 \
+#         --epochs 100 \
+#         --lr_steps 50 75 \
+#         --batch_size 128 \
+#         --lr 1e-1 \
+#         --weight_decay 1e-4 \
+#         --epoch_decay 3e-2 \
+#         --margin 0.6 \
+#         --loss auc \
+#         --early_stopping_patience 5
+
     python3 train_ensemble.py \
         --name default \
         --dataset $d \
-        --save_dir $saved_folder \
+        --save_dir './ensemble_oversample' \
         --workers $workers \
         --seed 123456 \
-        --epochs 200 \
+        --epochs 100 \
         --lr_steps 50 75 \
-        --batch_size 128 \
+        --batch_size 64 \
         --lr 1e-1 \
         --weight_decay 1e-4 \
         --epoch_decay 3e-2 \
         --margin 0.6 \
         --loss auc \
-        --train_on_val "true" \
-        --early_stopping_patience 10
+        --oversample 'true' \
+        --early_stopping_patience 5
 done
+        # --train_on_val "true" \
+        # --oversample "true" \
+
         # --augmentations "convirt"\
         # --aug_args "h.ra.et"\
-        # --oversample "true" \
 
 # workers=8
 # saved_folder='./ensemble_new'

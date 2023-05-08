@@ -23,29 +23,8 @@ name=$d
 #     --augmentations basic \
 #     --use_best_model
 
-## best val auc
-# python train.py \
-#     --name auc_val \
-#     --dataset $d \
-#     --save_dir $saved_folder \
-#     --workers $workers \
-#     --seed 123456 \
-#     --epochs 200 \
-#     --lr_steps 100 150 \
-#     --batch_size 128 \
-#     --lr 0.1 \
-#     --weight_decay 1e-3 \
-#     --epoch_decay 0.03 \
-#     --margin 1.0 \
-#     --loss auc \
-#     --augmentations convirt \
-#     --aug_args 'rc' \
-#     --dropout 0 \
-#     --resize 128
-
-
-# train on validation and train datasets
-python3 train.py \
+# best val auc
+python train.py \
     --name auc_val \
     --dataset $d \
     --save_dir $saved_folder \
@@ -62,5 +41,26 @@ python3 train.py \
     --augmentations convirt \
     --aug_args 'rc' \
     --dropout 0 \
-    --train_on_val 'true' \
     --resize 128
+
+
+# # train on validation and train datasets
+# python3 train.py \
+#     --name auc_val \
+#     --dataset $d \
+#     --save_dir $saved_folder \
+#     --workers $workers \
+#     --seed 123456 \
+#     --epochs 200 \
+#     --lr_steps 100 150 \
+#     --batch_size 128 \
+#     --lr 0.1 \
+#     --weight_decay 1e-3 \
+#     --epoch_decay 0.03 \
+#     --margin 1.0 \
+#     --loss auc \
+#     --augmentations convirt \
+#     --aug_args 'rc' \
+#     --dropout 0 \
+#     --train_on_val 'true' \
+#     --resize 128
