@@ -326,12 +326,17 @@ def main(args):
     train_dataset = DataClass(split='train', transform=train_transform, download=True, as_rgb=True)
     val_dataset = DataClass(split='val', transform=eval_transform, download=True, as_rgb=True)
     test_dataset = DataClass(split='test', transform=eval_transform, download=True, as_rgb=True)
+    if args.train_on_val:
+    #     warnings.warn(f"You are training on the train set and validation set")
+        # print(type(train_dataset))
+        val_for_train_dataset = DataClass(split='val', transform=train_transform, download=True, as_rgb=True)
+    #     train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
 
     # test_labels[test_labels != args.pos_class] = 999
     # test_labels[test_labels == args.pos_class] = 1
     # test_labels[test_labels == 999] = 0
 
-    print(f"==> Positive/negative samples: {(train_dataset.labels == 1).sum()}/{(train_dataset.labels == 0).sum()}=>{(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]}")
+    # print(f"==> Positive/negative samples: {(train_dataset.labels == 1).sum()}/{(train_dataset.labels == 0).sum()}=>{(train_dataset.labels == 1).sum()/train_dataset.labels.shape[0]}")
 
     if args.sampler is not None:
         sampler = DualSampler(
@@ -343,13 +348,24 @@ def main(args):
         )
     else:
         sampler = None
-    train_dataloader = DataLoader(
-        dataset=train_dataset,
-        batch_size=args.batch_size,
-        sampler=sampler,
-        shuffle=sampler is None,
-        num_workers=args.workers, 
-    )
+
+    if args.train_on_val:
+        warnings.warn("You are training on the train set and validation set")
+        train_dataloader = DataLoader(
+            dataset=torch.utils.data.ConcatDataset([train_dataset, val_for_train_dataset]),
+            batch_size=args.batch_size,
+            sampler=sampler,
+            shuffle=sampler is None,
+            num_workers=args.workers, 
+        )
+    else:
+        train_dataloader = DataLoader(
+            dataset=train_dataset,
+            batch_size=args.batch_size,
+            sampler=sampler,
+            shuffle=sampler is None,
+            num_workers=args.workers, 
+        )
     val_dataloader = DataLoader(
         dataset=val_dataset,
         batch_size=args.batch_size,

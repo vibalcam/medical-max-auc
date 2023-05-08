@@ -34,5 +34,5 @@ python3 train.py \
     --betas $b1 $b2 \
     --augmentations "convirt"\
     --aug_args "h.ra.et"\
-    --dropout $dr 
-    # --early_stopping_patience 2
+    --dropout $dr \
+    --early_stopping_patience 2

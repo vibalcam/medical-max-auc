@@ -18,7 +18,7 @@ do
 
     # basic training
     echo "Starting basic training for dataset $d"
-    python3 train_ensemble2.py \
+    python3 train_ensemble.py \
         --name default \
         --dataset $d \
         --save_dir $saved_folder \

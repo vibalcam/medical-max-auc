@@ -37,6 +37,7 @@ parser.add_argument('--dataset', type=str, default="breastmnist", choices=["brea
 parser.add_argument('--augmentations', type=str, default="basic")
 parser.add_argument('--aug_args', type=str, default='gn.ra')
 parser.add_argument('--sampler', type=float, default=None)
+parser.add_argument('--train_on_val', default=None, type=str, help='train on train and validation sets')
 
 # saving
 parser.add_argument('--save_every_epochs', default=5, type=int, help='number of epochs to save checkpoint')
