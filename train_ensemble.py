@@ -1,29 +1,8 @@
-# import random
-# from lightning.pytorch.utilities.types import EVAL_DATALOADERS
-# import torch
-# import torch.nn as nn
-# import torch.optim as optim
-# import torchvision.transforms as transforms
-# import torchvision.datasets as datasets
-# from torch.utils.data import DataLoader, random_split, SubsetRandomSampler, RandomSampler
-# from torchvision.models import resnet18
-# import pytorch_lightning as pl
-# from train import Module as GeneralModel
-
-# import argparse
-# from functools import partial
-# import gc
-# import math
 import os
-# from typing import Any, Optional
 import warnings
-# from matplotlib import pyplot as plt
 from models.pretraining import similarity_loss
-# from models.schedulers import CosineSchedulerWithWarmup, SchedulerCollection, StepSchedulerWithWarmup
-# from models.utils import ClassificationMetrics, get_logger_name, model_to_syncbn, save_dict, save_pickle, set_seed
 from models.utils import ClassificationMetrics, save_dict, save_pickle, set_seed
 
-# import numpy as np
 import lightning.pytorch as pl
 import torch
 import torch.nn as nn
@@ -32,6 +11,7 @@ import torch.optim
 import torch.utils.data 
 import torch.utils.data.distributed
 from torch.utils.data import DataLoader
+from torchsampler import ImbalancedDatasetSampler
 
 from libauc.losses import AUCMLoss, CompositionalAUCLoss
 from libauc import optimizers
@@ -39,9 +19,7 @@ import medmnist
 from models import augments
 from medmnist import INFO
 import numpy as np
-# from models.sampler import DualSampler
 from train import Module as GeneralModel
-from torchsampler import ImbalancedDatasetSampler
 
 
 class EnsembleModel(pl.LightningModule):
@@ -86,9 +64,7 @@ class EnsembleModel(pl.LightningModule):
         self.test_metrics = ClassificationMetrics('test_')
 
     def configure_optimizers(self):
-        # ONLY WORKS FOR auc loss, to work with others need
-        # self.lr_scheduler = SchedulerCollection()
-        ## optimizer
+        # ONLY WORKS FOR auc loss, to work with others need to implement logic
         if self.args.loss_type == 'auc':
             optimizer0 = optimizers.PESG(
                 self.models[0], 
@@ -124,8 +100,11 @@ class EnsembleModel(pl.LightningModule):
         return [optimizer0, optimizer1, optimizer2], []
 
     def forward(self, x):
+        # import pdb
         output = 0
         for model in self.models:
+            # pdb.set_trace()
+            # print("HERE")
             output += model(x)
         return output / self.num_models
 
@@ -221,23 +200,23 @@ class EnsembleModel(pl.LightningModule):
         self.test_metrics.update(target.int(), torch.sigmoid(output))
 
     def train_dataloader(self):
-        # train_size = len(self.train_dataset)
-        if self.args.train_on_val is not None:
-            concat_dataset=torch.utils.data.ConcatDataset([self.train_dataset, self.val_dataset]),
-            train_sets = torch.utils.data.random_split(concat_dataset, [0.33, 0.33, 0.34])
-        else:
-            train_sets = torch.utils.data.random_split(self.train_dataset, [0.33, 0.33, 0.34])
+        train_sets = torch.utils.data.random_split(self.train_dataset, [0.33, 0.33, 0.34])
+        val_sets = torch.utils.data.random_split(self.val_dataset, [0.33, 0.33, 0.34])
         loaders = {}
         for i in range(len(train_sets)):
             if self.args.oversample is not None:
                 train_set_indices = train_sets[i].indices
                 subset_labels = np.squeeze(self.train_dataset.labels[train_set_indices])
-                loaders["d"+str(i)] = DataLoader(train_sets[i],
+                loaders["d"+str(i)] = DataLoader(dataset=train_sets[i],
                                                  batch_size=self.args.batch_size,
                                                  sampler=ImbalancedDatasetSampler(train_sets[i], labels=subset_labels),
                                                  num_workers=self.args.workers)
+            elif self.args.train_on_val is not None:
+                loaders["d"+str(i)] = DataLoader(dataset=torch.utils.data.ConcatDataset([train_sets[i], val_sets[i]]),
+                                                 batch_size=self.args.batch_size,
+                                                 num_workers=self.args.workers)
             else:
-                loaders["d"+str(i)] = DataLoader(train_sets[i],
+                loaders["d"+str(i)] = DataLoader(dataset=train_sets[i],
                                                  batch_size=self.args.batch_size, 
                                                  num_workers=self.args.workers)
         return loaders
