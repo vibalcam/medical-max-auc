@@ -23,6 +23,35 @@ name=$d
 #     --use_best_model \
 #     --type_3d '3d'
 
+## best val auc resized to 80
+python train.py \
+    --name $name \
+    --dataset $d \
+    --save_dir $saved_folder \
+    --workers $workers \
+    --seed 123456 \
+    --epochs 200 \
+    --lr_steps 100 150 \
+    --batch_size 32 \
+    --lr 0.1 \
+    --weight_decay 1e-4 \
+    --epoch_decay 3e-3 \
+    --margin 0.6 \
+    --loss auc \
+    --augmentations convirt \
+    --aug_args $1 \
+    --dropout 0 \
+    --type_3d '3d' \
+    --evaluate_every 5 \
+    --early_stopping_patience 10 \
+    --resize 80 \
+    --use_16
+    # --epoch_decay 3e-2 \
+    # --aug_args 'et' \
+
+###################################################
+###################################################
+
 # ## best val auc
 # python train.py \
 #     --name $name \
@@ -44,27 +73,3 @@ name=$d
 #     --type_3d '3d' \
 #     --evaluate_every 5 \
 #     --early_stopping_patience 10
-
-## best val auc resized to 80
-python train.py \
-    --name $name \
-    --dataset $d \
-    --save_dir $saved_folder \
-    --workers $workers \
-    --seed 123456 \
-    --epochs 200 \
-    --lr_steps 100 150 \
-    --batch_size 32 \
-    --lr 0.1 \
-    --weight_decay 1e-4 \
-    --epoch_decay 3e-2 \
-    --margin 0.6 \
-    --loss auc \
-    --augmentations convirt \
-    --aug_args 'et' \
-    --dropout 0 \
-    --type_3d '3d' \
-    --evaluate_every 5 \
-    --early_stopping_patience 10 \
-    --resize 80 \
-    --use_16

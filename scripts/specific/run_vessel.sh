@@ -47,6 +47,9 @@ python train.py \
     --resize 80 \
     --use_16
 
+###################################################
+###################################################
+
 # ## best val auc with dropout
 # python train.py \
 #     --name $name \
