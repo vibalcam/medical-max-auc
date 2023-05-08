@@ -285,6 +285,10 @@ class Module(pl.LightningModule):
         x, target = batch[:2]
         output = self(x)
 
+        if output.isnan().any():
+            warnings.warn("Nan values being generated")
+            return
+
         # calculate metrics
         self.val_metrics.update(target.int(), torch.sigmoid(output))
         # y_pred = torch.sigmoid(output).float().detach()
@@ -296,7 +300,7 @@ class Module(pl.LightningModule):
             self.lr_scheduler.update(None)
 
     def on_validation_epoch_end(self) -> None:
-        if self.args.loss_type == 'pre':
+        if self.args.loss_type == 'pre' or len(self.val_metrics) == 0:
             return
         
         self.log_dict(self.val_metrics.compute())
