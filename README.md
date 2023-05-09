@@ -111,26 +111,3 @@ It is important to use the same options as for training to ensure the correct au
     ```
     python test.py
     ```
-
-
-- [X] ~~*readme*~~ [2023-05-08]
-- [X] ~~*selection scheme*~~ [2023-05-08]
-- [X] ~~*check selections for adrenal*~~ [2023-05-08]
-- [ ] run all
-- [ ] add additional
-- [ ] test run aug
-- [ ] test all
-- [X] ~~*add to readme*~~ [2023-05-08]
-- [X] ~~*add to paper*~~ [2023-05-08]
-
-- [X] ~~*bold best results*~~ [2023-05-08]
-
-- [X] ~~*pretraining*~~ [2023-05-08]
-- [X] ~~*incentive*~~ [2023-05-08]
-- [ ] incenvite results
-- [ ] results
-- [ ] additional
-- [ ] conclusions
-
-- [ ] check nodule aug
-
