@@ -500,7 +500,7 @@ def main(args):
     if args.loss_type != 'pre':
         checkpoint_cb_bestk = pl.callbacks.ModelCheckpoint(
             dirpath=save_path, 
-            filename="best",
+            filename="best-{epoch:02d}-{val_auc:.4f}",
             save_top_k=1, 
             monitor='val_auc',
             mode='max',
@@ -585,10 +585,10 @@ def main(args):
 
         if args.use_best_model:
             ck = checkpoint_cb_bestk.best_model_path
-            warnings.warn("Using best model")
+            warnings.warn("==>Using best model")
         else:
             ck = checkpoint_cb_every.best_model_path
-            warnings.warn("Using last model")
+            warnings.warn("==>Using last model")
 
         p = os.path.join(Path(ck).parent, 'best.ckpt')
         shutil.copy(ck, p)
