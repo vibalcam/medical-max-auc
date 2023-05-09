@@ -1,8 +1,7 @@
 #!/bin/bash
 
-workers=8
-# saved_folder='./other'
-saved_folder='./train_and_val'
+workers=4
+saved_folder='./other'
 
 d=nodulemnist3d
 # ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
@@ -40,7 +39,7 @@ python train.py \
     --margin 0.6 \
     --loss auc \
     --augmentations convirt \
-    --aug_args $1 \
+    --aug_args 'rc' \
     --dropout 0 \
     --type_3d '3d' \
     --evaluate_every 5 \

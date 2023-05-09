@@ -3,12 +3,14 @@ from functools import partial
 import gc
 import math
 import os
+import shutil
 from typing import Any, Optional
 import warnings
 from matplotlib import pyplot as plt
 from models.pretraining import similarity_loss
 from models.schedulers import CosineSchedulerWithWarmup, SchedulerCollection, StepSchedulerWithWarmup
 from models.utils import ClassificationMetrics, get_logger_name, model_to_syncbn, save_dict, save_pickle, set_seed
+from pathlib import Path
 
 import numpy as np
 import lightning.pytorch as pl
@@ -369,7 +371,7 @@ def main(args):
     train_dataset = DataClass(split='train', transform=train_transform, download=True, as_rgb=True)
     val_dataset = DataClass(split='val', transform=eval_transform, download=True, as_rgb=True)
     test_dataset = DataClass(split='test', transform=eval_transform, download=True, as_rgb=True)
-    if args.train_on_val:
+    if args.train_on_val is not None:
     #     warnings.warn(f"You are training on the train set and validation set")
         # print(type(train_dataset))
         val_for_train_dataset = DataClass(split='val', transform=train_transform, download=True, as_rgb=True)
@@ -394,7 +396,7 @@ def main(args):
     else:
         sampler = None
 
-    if args.train_on_val:
+    if args.train_on_val is not None:
         warnings.warn("You are training on the train set and validation set")
         train_dataloader = DataLoader(
             dataset=torch.utils.data.ConcatDataset([train_dataset, val_for_train_dataset]),
@@ -456,7 +458,7 @@ def main(args):
         img_shape=train_dataset[0][0].shape,
         num_outputs=n_outputs,
     )
-    if args.pretrained is not None:
+    if args.pretrained is not None and args.test is None:
         # args.pretrained = os.path.join(logger_base, args.pretrained)
         print(f"==>Loading pretrained model from {args.pretrained}")
         model = Module.load_from_checkpoint(args.pretrained).model
@@ -491,20 +493,20 @@ def main(args):
         save_on_train_epoch_end=True,
         # train_time_interval=,
         # every_n_train_steps=,
-        save_last=not args.use_best_model,
+        # save_last=not args.use_best_model,
     )
     callbacks.append(checkpoint_cb_every)
 
     if args.loss_type != 'pre':
         checkpoint_cb_bestk = pl.callbacks.ModelCheckpoint(
             dirpath=save_path, 
-            filename="best_auc-{epoch:02d}-{val_auc:.4f}",
+            filename="best",
             save_top_k=1, 
             monitor='val_auc',
             mode='max',
             verbose=True,
             # save_on_train_epoch_end=False,
-            save_last=args.use_best_model,
+            # save_last=args.use_best_model,
         )
         callbacks.append(checkpoint_cb_bestk)
 
@@ -579,7 +581,18 @@ def main(args):
     if args.test is not None:
         test_models = [('test', args.test)]
     else:
-        test_models = [('last', checkpoint_cb_every.best_model_path), ('best', checkpoint_cb_bestk.best_model_path)]        
+        test_models = [('last', checkpoint_cb_every.best_model_path), ('best', checkpoint_cb_bestk.best_model_path)]   
+
+        if args.use_best_model:
+            ck = checkpoint_cb_bestk.best_model_path
+            warnings.warn("Using best model")
+        else:
+            ck = checkpoint_cb_every.best_model_path
+            warnings.warn("Using last model")
+
+        p = os.path.join(Path(ck).parent, 'best.ckpt')
+        shutil.copy(ck, p)
+
     for name, cp in test_models:
         # cp = checkpoint_cb_bestk if args.use_best_model else checkpoint_cb_every
 
@@ -588,7 +601,7 @@ def main(args):
             model=model_task,
             dataloaders=val_dataloader, 
             ckpt_path=cp,
-            verbose=True,
+            verbose=False,
         )
 
         ## test model
@@ -596,7 +609,7 @@ def main(args):
             model=model_task,
             dataloaders=test_dataloader, 
             ckpt_path=cp,
-            verbose=True,
+            verbose=False,
         )
 
         logger.experiment.add_scalar(f"final_val_auc_{name}", results_val[0]['val_auc'], global_step=trainer.global_step+100)

@@ -1,8 +1,7 @@
 #!/bin/bash
 
 workers=8
-# saved_folder='./other'
-saved_folder='./train_and_val'
+saved_folder='./other'
 
 d=breastmnist
 # ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
@@ -24,7 +23,7 @@ name=$d
 #     --augmentations basic \
 #     --use_best_model
 
-# best val auc
+## train on validation and train datasets
 python train.py \
     --name auc_val \
     --dataset $d \
@@ -41,24 +40,5 @@ python train.py \
     --loss auc \
     --augmentations convirt \
     --aug_args 'rc' \
+    --train_on_val 'true' \
     --dropout 0
-
-# # train on validation and train datasets
-# python3 train.py \
-#     --name auc_val \
-#     --dataset $d \
-#     --save_dir $saved_folder \
-#     --workers $workers \
-#     --seed 123456 \
-#     --epochs 200 \
-#     --lr_steps 100 150 \
-#     --batch_size 128 \
-#     --lr 0.1 \
-#     --weight_decay 1e-5 \
-#     --epoch_decay 0.03 \
-#     --margin 1.0 \
-#     --loss auc \
-#     --augmentations convirt \
-#     --aug_args 'rc' \
-#     --train_on_val 'true' \
-#     --dropout 0

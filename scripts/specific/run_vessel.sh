@@ -1,8 +1,7 @@
 #!/bin/bash
 
-workers=8
-# saved_folder='./other'
-saved_folder='./train_and_val'
+workers=4
+saved_folder='./other'
 
 d=vesselmnist3d
 # ["breastmnist", "pneumoniamnist", "chestmnist", "nodulemnist3d", "adrenalmnist3d", "vesselmnist3d", "synapsemnist3d",]
@@ -24,7 +23,7 @@ name=$d
 #     --use_best_model \
 #     --type_3d '3d'
 
-## best val auc
+# ## best val auc
 python train.py \
     --name $name \
     --dataset $d \

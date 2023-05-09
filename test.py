@@ -12,7 +12,7 @@ from pandas import json_normalize
 
 folder = 'other'
 # paths = glob.glob(os.path.join(folder, "**/*.ckpt"), recursive=True)
-paths = glob.glob(os.path.join(folder, "**/last.ckpt"), recursive=True)
+paths = glob.glob(os.path.join(folder, "**/best.ckpt"), recursive=True)
 
 results = []
 args = vars(args)
