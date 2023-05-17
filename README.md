@@ -1,8 +1,8 @@
-# AUC-ROC Maximization for Medical data
+# Deep AUC Maximization for Medical data
 
-The best models are accesible at 
+Deep AUC Maximization Competition (Spring’23 ML Course Project)
 
-https://tamucs-my.sharepoint.com/:f:/g/personal/vibalcam_tamu_edu/Ekjod78yCmBAoN_ZQ0xSGxIBstQgvc8xgWBb7suabOhdaw?e=VL2yax
+The report can be found [here](medical_max_auc.pdf)
 
 ## Test models
 
